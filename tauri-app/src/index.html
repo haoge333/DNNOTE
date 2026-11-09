@@ -300,7 +300,7 @@ td.loot-items{white-space:normal;min-width:180px}
 .loot-hint b{color:var(--text);font-variant-numeric:tabular-nums}
 .loot-diff{color:var(--danger);font-variant-numeric:tabular-nums}
 /* 收益统计称号徽标：运气王 / 欧皇 */
-.loot-king{display:inline-block;margin-left:6px;padding:1px 9px;border-radius:12px;font-size:11px;font-weight:800;letter-spacing:.6px;color:#7c2d12;background:linear-gradient(135deg,#fffbeb,#fcd34d 45%,#f59e0b);border:1px solid #fbbf24;box-shadow:0 1px 6px rgba(245,158,11,.45);vertical-align:1px;animation:kingGlow 1.8s ease-in-out infinite}
+.loot-king{display:inline-block;margin-left:6px;padding:1px 9px;border-radius:12px;font-size:11px;font-weight:800;letter-spacing:.6px;color:#7c2d12;background:linear-gradient(135deg,#fffbeb,#fcd34d 45%,#f59e0b);border:1px solid #fbbf24;box-shadow:0 1px 6px rgba(245,158,11,.45);vertical-align:1px;animation:kingGlow 1.8s ease-in-out infinite;cursor:help}
 html.dark .loot-king{color:#fef3c7;background:linear-gradient(135deg,#78350f,#b45309 50%,#f59e0b);border-color:#fbbf24;box-shadow:0 0 10px rgba(245,158,11,.35);animation:none}
 @keyframes kingGlow{0%,100%{box-shadow:0 1px 5px rgba(245,158,11,.35)}50%{box-shadow:0 0 12px 2px rgba(245,158,11,.7)}}
 .loot-king.ou{color:#4c1d95;background:linear-gradient(135deg,#faf5ff,#d8b4fe 45%,#a855f7);border-color:#c084fc;box-shadow:0 1px 6px rgba(168,85,247,.45);animation:ouGlow 1.8s ease-in-out infinite}
@@ -999,8 +999,8 @@ function renderWeekKings(week){
   const namesC = chars.filter(r => r.week === topC).map(r => r.charName).join('、');
   const namesA = accs.filter(r => r.week === topA).map(r => r.accName).join('、');
   el.innerHTML =
-    `<span class="king"><span class="loot-king" style="margin-left:0">🍀 运气王</span><b>${esc(namesC)}</b><span class="amt">${fmtGold(topC)}</span></span>` +
-    `<span class="king ou"><span class="loot-king ou" style="margin-left:0">👑 欧皇</span><b>${esc(namesA)}</b><span class="amt">${fmtGold(topA)}</span></span>`;
+    `<span class="king"><span class="loot-king" style="margin-left:0" title="${week} 收益最高的角色：分红 + 出货收益合计 ${fmtGold(topC)} 金币（并列时同时显示）">🍀 运气王</span><b>${esc(namesC)}</b><span class="amt">${fmtGold(topC)}</span></span>` +
+    `<span class="king ou"><span class="loot-king ou" style="margin-left:0" title="${week} 收益最高的账号：该账号下所有角色的分红 + 出货收益合计 ${fmtGold(topA)} 金币（并列时同时显示）">👑 欧皇</span><b>${esc(namesA)}</b><span class="amt">${fmtGold(topA)}</span></span>`;
 }
 
 function renderOverview(){
@@ -1913,7 +1913,10 @@ function renderStats(){
     html += isAcc ? '<th>账号</th><th class="num">角色数</th>' : '<th>账号</th><th>角色</th>';
     html += '<th class="num">所选周收益</th><th class="num">其中分红</th><th class="num">其中出货</th><th class="num">已收</th><th class="num">待收</th><th class="num">累计收益</th><th class="num">次数</th></tr></thead><tbody>';
     rows.forEach(r => {
-      const king = maxWeek > 0 && r.week === maxWeek ? `<span class="loot-king ${isAcc ? 'ou' : ''}">${isAcc ? '👑 欧皇' : '🍀 运气王'}</span>` : '';
+      const kingTip = isAcc
+        ? `${week} 收益最高的账号：该账号下所有角色的分红 + 出货收益合计 ${fmtGold(maxWeek)} 金币（并列时同时显示）`
+        : `${week} 收益最高的角色：分红 + 出货收益合计 ${fmtGold(maxWeek)} 金币（并列时同时显示）`;
+      const king = maxWeek > 0 && r.week === maxWeek ? `<span class="loot-king ${isAcc ? 'ou' : ''}" title="${kingTip}">${isAcc ? '👑 欧皇' : '🍀 运气王'}</span>` : '';
       html += isAcc
         ? `<tr><td>${accChip(r.accName)}${king}</td><td class="num">${r.chars}</td>`
         : `<tr><td>${accChip(r.accName)}</td><td><span class="job-dot" style="background:${r.color}"></span><b style="color:${r.color}">${esc(r.charName)}</b>${king}</td>`;
