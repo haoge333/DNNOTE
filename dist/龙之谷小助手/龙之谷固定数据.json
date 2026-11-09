@@ -1,0 +1,180 @@
+{
+  "app": "龙之谷小助手",
+  "type": "fixed",
+  "version": 3,
+  "defaultConfig": {
+    "resetWeekday": 6,
+    "resetHour": 9,
+    "defaultLevel": 95,
+    "maxLevel": 99,
+    "autoStart": true,
+    "sealUnitPrice": 5
+  },
+  "jobList": [
+    {
+      "id": "j_warrior",
+      "name": "战士",
+      "color": "#ffa51f",
+      "subs": [
+        {
+          "id": "s_jianhuang",
+          "name": "剑皇"
+        },
+        {
+          "id": "s_yuezhu",
+          "name": "月之领主"
+        },
+        {
+          "id": "s_kuangzhan",
+          "name": "狂战士"
+        },
+        {
+          "id": "s_huimie",
+          "name": "毁灭者"
+        },
+        {
+          "id": "s_heifu",
+          "name": "黑暗复仇者"
+        }
+      ]
+    },
+    {
+      "id": "j_archer",
+      "name": "弓箭手",
+      "color": "#97e228",
+      "subs": [
+        {
+          "id": "s_moyu",
+          "name": "魔羽"
+        },
+        {
+          "id": "s_juling",
+          "name": "狙翎"
+        },
+        {
+          "id": "s_fengxing",
+          "name": "风行者"
+        },
+        {
+          "id": "s_yingwu",
+          "name": "影舞者"
+        }
+      ]
+    },
+    {
+      "id": "j_sorceress",
+      "name": "魔法师",
+      "color": "#ad439f",
+      "subs": [
+        {
+          "id": "s_huowu",
+          "name": "火舞"
+        },
+        {
+          "id": "s_bingling",
+          "name": "冰灵"
+        },
+        {
+          "id": "s_shikong",
+          "name": "时空领主"
+        },
+        {
+          "id": "s_heiannvwang",
+          "name": "黑暗女王"
+        }
+      ]
+    },
+    {
+      "id": "j_cleric",
+      "name": "牧师",
+      "color": "#63b3ed",
+      "subs": [
+        {
+          "id": "s_shengqishi",
+          "name": "圣骑士"
+        },
+        {
+          "id": "s_shizijun",
+          "name": "十字军"
+        },
+        {
+          "id": "s_shengtu",
+          "name": "圣徒"
+        },
+        {
+          "id": "s_leishen",
+          "name": "雷神"
+        }
+      ]
+    },
+    {
+      "id": "j_academic",
+      "name": "学者",
+      "color": "#f9f001",
+      "subs": [
+        {
+          "id": "s_jixie",
+          "name": "机械大师"
+        },
+        {
+          "id": "s_zhongpao",
+          "name": "重炮手"
+        },
+        {
+          "id": "s_lianjin",
+          "name": "炼金圣士"
+        },
+        {
+          "id": "s_yaoji",
+          "name": "药剂师"
+        }
+      ]
+    },
+    {
+      "id": "j_kali",
+      "name": "卡莉",
+      "color": "#bda589",
+      "subs": [
+        {
+          "id": "s_saman",
+          "name": "黑暗萨满"
+        },
+        {
+          "id": "s_shihun",
+          "name": "噬魂者"
+        },
+        {
+          "id": "s_daofeng",
+          "name": "刀锋舞者"
+        },
+        {
+          "id": "s_linghun",
+          "name": "灵魂舞者"
+        }
+      ]
+    },
+    {
+      "id": "j_assassin",
+      "name": "刺客",
+      "color": "#00a86b",
+      "subs": [
+        {
+          "id": "s_ying",
+          "name": "影"
+        },
+        {
+          "id": "s_an",
+          "name": "暗"
+        },
+        {
+          "id": "s_yao",
+          "name": "曜"
+        },
+        {
+          "id": "s_lie",
+          "name": "烈"
+        }
+      ]
+    }
+  ]
+}
