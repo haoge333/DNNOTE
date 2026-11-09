@@ -1,11 +1,11 @@
 {
   "app": "龙之谷小助手",
   "type": "fixed",
-  "version": 3,
-  "defaultConfig": {
+  "version": 4,
+  "config": {
     "resetWeekday": 6,
     "resetHour": 9,
-    "defaultLevel": 95,
+    "defaultLevel": 70,
     "maxLevel": 99,
     "autoStart": true,
     "sealUnitPrice": 5

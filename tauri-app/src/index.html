@@ -428,9 +428,9 @@ html.dark .loot-king.ou{background:#3b0764;border-color:#6b21a8;color:#d8b4fe}
       <h2>⚙️ 系统设置</h2>
       <p class="mut" style="margin-bottom:16px;line-height:1.8">
         本工具为 Tauri 桌面应用，数据按用途分为两个文件，均保存在程序同目录：<br>
-        • <b>龙之谷数据.json</b>（个人数据）：你当前的设置、副本、账号角色、通关记录、悬赏与分红记录。<br>
-        • <b>龙之谷固定数据.json</b>（固定数据）：默认设置（重置时间、等级、封印单价、开机自启）与职业表。<br>
-        • 启动时自动读取两个文件，所有修改自动保存；「清理数据」只清个人数据，固定数据保留。
+        • <b>龙之谷数据.json</b>（个人数据）：当前周、副本、账号角色、通关记录、悬赏与分红记录。<br>
+        • <b>龙之谷固定数据.json</b>（固定数据）：全部设置（重置时间、等级、封印单价、开机自启）与职业表。<br>
+        • 启动时自动读取两个文件，所有修改自动保存；「清理数据」只清个人数据，设置与固定数据保留。
       </p>
       <p class="mut" id="dataPathInfo" style="margin-bottom:16px;font-size:12px;word-break:break-all"></p>
       <div class="flex" style="flex-wrap:wrap;gap:10px">
@@ -571,19 +571,22 @@ function showSaveIndicator(msg, isErr){
   clearTimeout(el._timer);
   el._timer = setTimeout(() => el.classList.remove('show'), 2000);
 }
-// 数据拆分：固定数据（默认设置 + 职业表）与个人数据分开存放
-// 个人数据：config / nestList / accountList / lootList → 龙之谷数据.json
-// 固定数据：defaultConfig（默认设置） + jobList（职业表）→ 龙之谷固定数据.json
+// 数据拆分：固定数据（设置 + 职业表）与个人数据分开存放
+// 个人数据：当前周 / nestList / accountList / lootList → 龙之谷数据.json
+// 固定数据：config（设置） + jobList（职业表）→ 龙之谷固定数据.json
+// 注意：config 中的 currentWeekId 属于个人运行状态，写固定数据时排除
+const SETTING_KEYS = ['resetWeekday', 'resetHour', 'defaultLevel', 'maxLevel', 'autoStart', 'sealUnitPrice'];
 function personalPart(){
   return {
-    app: '龙之谷小助手', type: 'personal', version: 3,
-    config: S.config, nestList: S.nestList, accountList: S.accountList, lootList: S.lootList
+    app: '龙之谷小助手', type: 'personal', version: 4,
+    currentWeekId: S.config.currentWeekId,
+    nestList: S.nestList, accountList: S.accountList, lootList: S.lootList
   };
 }
 function fixedPart(){
-  const d = Object.assign({}, FIXED_DEFAULTS || defaultConfig());
-  delete d.currentWeekId; // 当前周属于个人运行状态，不作为默认值保存
-  return { app: '龙之谷小助手', type: 'fixed', version: 3, defaultConfig: d, jobList: S.jobList };
+  const cfg = {};
+  SETTING_KEYS.forEach(k => { cfg[k] = S.config[k]; });
+  return { app: '龙之谷小助手', type: 'fixed', version: 4, config: cfg, jobList: S.jobList };
 }
 // 只写固定数据文件
 async function writeFixedFile(){
@@ -683,8 +686,11 @@ function defaultJobList(){
   ];
 }
 function blankState(){
+  // 设置属于固定数据：优先沿用当前内存里的设置（清理数据时也保留），其次固定文件，最后内置默认
+  const base = Object.assign({}, FIXED_DEFAULTS || defaultConfig(), S ? S.config : {});
+  base.currentWeekId = '';
   return {
-    config: Object.assign({}, FIXED_DEFAULTS || defaultConfig(), { currentWeekId: '' }),
+    config: base,
     jobList: defaultJobList(),
     nestList: [],
     accountList: [],
@@ -745,7 +751,7 @@ function migrateState(st){
 }
 // 清理数据：清空全部数据恢复初始状态，二次确认（危险操作）
 function clearAllData(){
-  if (!confirm('⚠️ 危险操作：清理数据\n\n将清空所有账号、角色、副本、通关记录与分红记录，设置恢复为默认值（职业表等固定数据保留）。\n此操作不可撤销，建议先点击「导出备份」保存当前数据！\n\n确定继续吗？')) return;
+  if (!confirm('⚠️ 危险操作：清理数据\n\n将清空所有账号、角色、副本、通关记录与分红记录。\n设置与职业表等固定数据会保留。\n此操作不可撤销，建议先点击「导出备份」保存当前数据！\n\n确定继续吗？')) return;
   if (!confirm('🚨 再次确认\n\n真的要清空全部个人数据吗？此操作无法恢复！')) return;
   const fixedJobs = S.jobList;      // 固定数据（职业表）不属于个人数据，清理时保留
   S = blankState();
@@ -763,23 +769,36 @@ async function loadFromDisk(){
   // 第一步：只做读取与解析，失败则不动内存中的状态
   try {
     const text = await window.__TAURI__.invoke('read_data_file');
-    st = JSON.parse(text);
+    st = JSON.parse(text.replace(/^\uFEFF/, '')); // 兼容记事本等工具写入的 BOM
   } catch (e) {
     loadErrorMsg = String(e);
     console.log('数据文件不存在或读取失败，使用空白存档', e);
     return false;
   }
-  // 第二步：读取固定数据（默认设置 + 职业表）；缺失时退回内置默认，稍后补写文件
+  // 第二步：读取固定数据（设置 + 职业表）；缺失时退回内置默认，稍后补写文件
   let fx = null, fxMissing = false;
   try {
-    fx = JSON.parse(await window.__TAURI__.invoke('read_fixed_file'));
+    fx = JSON.parse((await window.__TAURI__.invoke('read_fixed_file')).replace(/^\uFEFF/, ''));
   } catch (e) {
     fxMissing = String(e).includes('文件不存在');
     if (!fxMissing) console.warn('固定数据文件读取失败，暂用内置默认', e);
   }
-  const fxDefaults = fx && fx.defaultConfig && typeof fx.defaultConfig === 'object' ? fx.defaultConfig : null;
-  // 默认设置以固定数据文件为准，个人数据里缺的键才用它补齐
-  FIXED_DEFAULTS = Object.assign(defaultConfig(), fxDefaults || {});
+  // 固定数据里的设置优先；兼容旧格式（defaultConfig），再退回内置默认值
+  const hasFixedCfg = !!(fx && fx.config && typeof fx.config === 'object');
+  const fxCfg = hasFixedCfg ? fx.config
+              : (fx && fx.defaultConfig && typeof fx.defaultConfig === 'object' ? fx.defaultConfig : null);
+  const personalHadSettings = !!(st.config && typeof st.config === 'object'
+    && SETTING_KEYS.some(k => st.config[k] !== undefined));
+  if (hasFixedCfg){
+    // 设置已由固定数据接管，个人文件里若残留旧设置，只保留当前周
+    st.config = { currentWeekId: st.config && st.config.currentWeekId };
+    FIXED_DEFAULTS = Object.assign(defaultConfig(), fxCfg);
+  } else if (personalHadSettings){
+    // 旧版布局：实际设置还在个人文件里，本次启动迁移到固定数据
+    FIXED_DEFAULTS = Object.assign(defaultConfig(), st.config);
+  } else {
+    FIXED_DEFAULTS = Object.assign(defaultConfig(), fxCfg || {});
+  }
   const legacyJobList = Array.isArray(st.jobList) && st.jobList.length > 0;
   const fixedJobs = fx && Array.isArray(fx.jobList) && fx.jobList.length ? fx.jobList : null;
   if (fixedJobs) st.jobList = fixedJobs;
@@ -787,12 +806,12 @@ async function loadFromDisk(){
   // 第三步：应用数据并渲染；渲染异常不影响已加载的数据，也绝不覆盖原文件
   S = migrateState(st);
   if (!S.jobList.length) S.jobList = blankState().jobList;
-  // 固定数据文件不存在、或是旧版（没有 defaultConfig）时补写一份
-  if (fxMissing || (fx && !fxDefaults)){
+  // 固定数据文件不存在、或是旧版格式（没有 config 字段）时补写一份
+  if (fxMissing || (fx && !fxCfg)){
     try { await writeFixedFile(); } catch (e) { console.warn('固定数据文件写入失败', e); }
   }
-  // 个人文件里遗留了 jobList（旧版布局）时，保存一次把它移出，完成拆分迁移
-  if (fxMissing || legacyJobList) scheduleAutoSave();
+  // 个人文件里遗留了 jobList / 设置（旧版布局）时，保存一次把它们移出，完成拆分迁移
+  if (fxMissing || legacyJobList || personalHadSettings) scheduleAutoSave();
   S.config.currentWeekId = computeCurrentWeekId();
   clearDirty();
   checkAutoReset();
