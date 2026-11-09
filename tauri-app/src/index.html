@@ -300,10 +300,18 @@ td.loot-items{white-space:normal;min-width:180px}
 .loot-hint b{color:var(--text);font-variant-numeric:tabular-nums}
 .loot-diff{color:var(--danger);font-variant-numeric:tabular-nums}
 /* 收益统计称号徽标：运气王 / 欧皇 */
-.loot-king{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;font-size:11px;font-weight:700;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;vertical-align:1px}
-html.dark .loot-king{background:#451a03;border-color:#78350f;color:#fcd34d}
-.loot-king.ou{color:#6b21a8;background:#f3e8ff;border-color:#d8b4fe}
-html.dark .loot-king.ou{background:#3b0764;border-color:#6b21a8;color:#d8b4fe}
+.loot-king{display:inline-block;margin-left:6px;padding:1px 9px;border-radius:12px;font-size:11px;font-weight:800;letter-spacing:.6px;color:#7c2d12;background:linear-gradient(135deg,#fffbeb,#fcd34d 45%,#f59e0b);border:1px solid #fbbf24;box-shadow:0 1px 6px rgba(245,158,11,.45);vertical-align:1px;animation:kingGlow 1.8s ease-in-out infinite}
+html.dark .loot-king{color:#fef3c7;background:linear-gradient(135deg,#78350f,#b45309 50%,#f59e0b);border-color:#fbbf24;box-shadow:0 0 10px rgba(245,158,11,.35);animation:none}
+@keyframes kingGlow{0%,100%{box-shadow:0 1px 5px rgba(245,158,11,.35)}50%{box-shadow:0 0 12px 2px rgba(245,158,11,.7)}}
+.loot-king.ou{color:#4c1d95;background:linear-gradient(135deg,#faf5ff,#d8b4fe 45%,#a855f7);border-color:#c084fc;box-shadow:0 1px 6px rgba(168,85,247,.45);animation:ouGlow 1.8s ease-in-out infinite}
+html.dark .loot-king.ou{color:#f5f3ff;background:linear-gradient(135deg,#3b0764,#6b21a8 50%,#a855f7);border-color:#c084fc;box-shadow:0 0 10px rgba(168,85,247,.4);animation:none}
+@keyframes ouGlow{0%,100%{box-shadow:0 1px 5px rgba(168,85,247,.35)}50%{box-shadow:0 0 12px 2px rgba(168,85,247,.7)}}
+/* 账号专属色：每个账号固定一个色相，便于在列表里快速区分 */
+.acc-chip{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600;color:hsl(var(--h),62%,32%);background:hsl(var(--h),78%,94%);border:1px solid hsl(var(--h),65%,80%)}
+html.dark .acc-chip{color:hsl(var(--h),85%,82%);background:hsl(var(--h),45%,20%);border-color:hsl(var(--h),42%,36%)}
+/* 总览页账号分组行：底色跟随账号色相 */
+.row-acc td{background:hsl(var(--h),60%,96.5%)!important;box-shadow:inset 3px 0 0 hsl(var(--h),62%,58%)}
+html.dark .row-acc td{background:hsl(var(--h),30%,15%)!important;box-shadow:inset 3px 0 0 hsl(var(--h),55%,48%)}
 /* 总览页顶部的运气王 / 欧皇提示条 */
 .week-kings{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
 .week-kings .king{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--bg-hover);font-size:12px;color:var(--text-2)}
@@ -991,8 +999,8 @@ function renderWeekKings(week){
   const namesC = chars.filter(r => r.week === topC).map(r => r.charName).join('、');
   const namesA = accs.filter(r => r.week === topA).map(r => r.accName).join('、');
   el.innerHTML =
-    `<span class="king"><span class="loot-king" style="margin-left:0">运气王</span><b>${esc(namesC)}</b><span class="amt">${fmtGold(topC)}</span></span>` +
-    `<span class="king ou"><span class="loot-king ou" style="margin-left:0">欧皇</span><b>${esc(namesA)}</b><span class="amt">${fmtGold(topA)}</span></span>`;
+    `<span class="king"><span class="loot-king" style="margin-left:0">🍀 运气王</span><b>${esc(namesC)}</b><span class="amt">${fmtGold(topC)}</span></span>` +
+    `<span class="king ou"><span class="loot-king ou" style="margin-left:0">👑 欧皇</span><b>${esc(namesA)}</b><span class="amt">${fmtGold(topA)}</span></span>`;
 }
 
 function renderOverview(){
@@ -1047,7 +1055,7 @@ function renderOverview(){
     // 账号行
     const accTotal = chars.reduce((s,c) => s + c.availableNestIds.filter(nid => nests.some(n=>n.id===nid)).length, 0);
     const accDone  = chars.reduce((s,c) => s + c.availableNestIds.filter(nid => nests.some(n=>n.id===nid) && getRec(c,nid,week)?.c).length, 0);
-    html += `<tr class="row-acc ${collapsed?'collapsed':''}" data-acc="${acc.id}">
+    html += `<tr class="row-acc ${collapsed?'collapsed':''}" data-acc="${acc.id}" style="--h:${accHue(acc.name)}">
       <td colspan="${nests.length + 3}"><span class="arrow">▼</span>📁 ${esc(acc.name)}
       <span class="mut" data-acc-prog>（${chars.length} 个角色 · ${readonly?week:'本周'} ${accDone}/${accTotal}）</span></td></tr>`;
     if (collapsed) return;
@@ -1387,7 +1395,7 @@ function renderCharList(){
         <span class="tag">Lv.${c.level}</span>
         <span class="tag">${esc(jobName(c.jobId))}</span>
         ${c.subJobId ? `<span class="tag" style="color:${color};border-color:${color}">${esc(charJobName(c))}</span>` : ''}
-        <span class="tag">📁 ${esc(a.name)}</span>
+        ${accChip(a.name, '📁 ')}
         <span class="meta">可通关：${esc(nestNames)}</span>
         ${c.enable?'':'<span class="tag" style="color:var(--warn)">已归档</span>'}
       </div><div class="actions">
@@ -1905,10 +1913,10 @@ function renderStats(){
     html += isAcc ? '<th>账号</th><th class="num">角色数</th>' : '<th>账号</th><th>角色</th>';
     html += '<th class="num">所选周收益</th><th class="num">其中分红</th><th class="num">其中出货</th><th class="num">已收</th><th class="num">待收</th><th class="num">累计收益</th><th class="num">次数</th></tr></thead><tbody>';
     rows.forEach(r => {
-      const king = maxWeek > 0 && r.week === maxWeek ? `<span class="loot-king ${isAcc ? 'ou' : ''}">${isAcc ? '欧皇' : '运气王'}</span>` : '';
+      const king = maxWeek > 0 && r.week === maxWeek ? `<span class="loot-king ${isAcc ? 'ou' : ''}">${isAcc ? '👑 欧皇' : '🍀 运气王'}</span>` : '';
       html += isAcc
-        ? `<tr><td>${esc(r.accName)}${king}</td><td class="num">${r.chars}</td>`
-        : `<tr><td>${esc(r.accName)}</td><td><span class="job-dot" style="background:${r.color}"></span><b style="color:${r.color}">${esc(r.charName)}</b>${king}</td>`;
+        ? `<tr><td>${accChip(r.accName)}${king}</td><td class="num">${r.chars}</td>`
+        : `<tr><td>${accChip(r.accName)}</td><td><span class="job-dot" style="background:${r.color}"></span><b style="color:${r.color}">${esc(r.charName)}</b>${king}</td>`;
       html += `<td class="num"><b>${fmtGold(r.week)}</b></td>
         <td class="num">${fmtGold(r.lootWeek)}</td>
         <td class="num">${fmtGold(r.dropWeek)}</td>
@@ -1992,6 +2000,17 @@ function myCharList(){
   const out = [];
   S.accountList.forEach(a => (a.charList || []).forEach(c => out.push({ id: c.id, name: c.name, acc: a.name })));
   return out;
+}
+
+// 账号专属色相：同一账号名始终得到同一颜色，用于列表里区分账号
+function accHue(name){
+  const s = String(name || '');
+  let h = 7;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+  return h;
+}
+function accChip(name, prefix = ''){
+  return `<span class="acc-chip" style="--h:${accHue(name)}">${prefix}${esc(name)}</span>`;
 }
 
 function renderLoot(){
@@ -2548,7 +2567,7 @@ function renderDrop(){
 
   const rows = list.map(d => `<tr>
     <td>${d.soldAt ? esc(d.soldAt) : '<span class="mut">未售出</span>'}</td>
-    <td>${esc(d.accName || '')}</td>
+    <td>${d.accName ? accChip(d.accName) : ''}</td>
     <td>${esc(d.charName || '')}</td>
     <td><b>${esc(d.itemName || '')}</b></td>
     <td class="num">${(d.price || 0) > 0
