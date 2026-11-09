@@ -331,6 +331,7 @@ html.dark .loot-king.ou{background:#3b0764;border-color:#6b21a8;color:#d8b4fe}
   <button data-page="manage">⚙️ 管理</button>
   <button data-page="stats">📈 统计</button>
   <button data-page="loot">💰 分红</button>
+  <button data-page="drop">🎁 出货</button>
   <button data-page="donate">☕ 打赏</button>
 </nav>
 
@@ -422,13 +423,32 @@ html.dark .loot-king.ou{background:#3b0764;border-color:#6b21a8;color:#d8b4fe}
     </div>
   </section>
 
+  <!-- ================= 出货页 ================= -->
+  <section class="page" id="page-drop">
+    <div class="card">
+      <h2>
+        🎁 出货记录
+        <span class="spacer"></span>
+        <select id="dropWeek" class="week-select"></select>
+        <button class="btn primary sm" id="btnAddDrop">+ 记录出货</button>
+      </h2>
+      <div class="loot-sum" id="dropSum"></div>
+      <div class="toolbar">
+        <div class="search-box"><input id="dropSearch" placeholder="搜索物品 / 角色 / 账号"></div>
+        <span class="spacer"></span>
+        <span class="mut" id="dropCount"></span>
+      </div>
+      <div id="dropBody"></div>
+    </div>
+  </section>
+
   <!-- ================= 系统设置页 ================= -->
   <section class="page" id="page-data">
     <div class="card">
       <h2>⚙️ 系统设置</h2>
       <p class="mut" style="margin-bottom:16px;line-height:1.8">
         本工具为 Tauri 桌面应用，数据按用途分为两个文件，均保存在程序同目录：<br>
-        • <b>龙之谷数据.json</b>（个人数据）：当前周、副本、账号角色、通关记录、悬赏与分红记录。<br>
+        • <b>龙之谷数据.json</b>（个人数据）：当前周、副本、账号角色、通关记录、悬赏、分红与出货记录。<br>
         • <b>龙之谷固定数据.json</b>（固定数据）：全部设置（重置时间、等级、封印单价、开机自启）与职业表。<br>
         • 启动时自动读取两个文件，所有修改自动保存；「清理数据」只清个人数据，设置与固定数据保留。
       </p>
@@ -580,7 +600,7 @@ function personalPart(){
   return {
     app: '龙之谷小助手', type: 'personal', version: 4,
     currentWeekId: S.config.currentWeekId,
-    nestList: S.nestList, accountList: S.accountList, lootList: S.lootList
+    nestList: S.nestList, accountList: S.accountList, lootList: S.lootList, dropList: S.dropList
   };
 }
 function fixedPart(){
@@ -694,7 +714,8 @@ function blankState(){
     jobList: defaultJobList(),
     nestList: [],
     accountList: [],
-    lootList: []
+    lootList: [],
+    dropList: []
   };
 }
 // 兼容旧格式：weeklyRecord 值若为 boolean 则转为 {c,t} 对象；补齐新增字段
@@ -716,6 +737,13 @@ function migrateState(st){
       }] : [];
       delete l.itemName; delete l.qty; delete l.price; delete l.sealCount; delete l.sealUnitPrice;
     }
+  });
+  // 出货记录：补齐缺失字段（价格、出售时间、归属周）
+  st.dropList = st.dropList || [];
+  st.dropList.forEach(d => {
+    d.price = d.price || 0;
+    d.soldAt = d.soldAt || (d.date || null);
+    if (!d.weekId) d.weekId = d.soldAt ? dropWeekOf(d.soldAt) : '';
   });
   // 旧职业数据无 subs 字段，补空数组
   st.jobList.forEach(j => { j.subs = j.subs || []; });
@@ -751,7 +779,7 @@ function migrateState(st){
 }
 // 清理数据：清空全部数据恢复初始状态，二次确认（危险操作）
 function clearAllData(){
-  if (!confirm('⚠️ 危险操作：清理数据\n\n将清空所有账号、角色、副本、通关记录与分红记录。\n设置与职业表等固定数据会保留。\n此操作不可撤销，建议先点击「导出备份」保存当前数据！\n\n确定继续吗？')) return;
+  if (!confirm('⚠️ 危险操作：清理数据\n\n将清空所有账号、角色、副本、通关记录、分红与出货记录。\n设置与职业表等固定数据会保留。\n此操作不可撤销，建议先点击「导出备份」保存当前数据！\n\n确定继续吗？')) return;
   if (!confirm('🚨 再次确认\n\n真的要清空全部个人数据吗？此操作无法恢复！')) return;
   const fixedJobs = S.jobList;      // 固定数据（职业表）不属于个人数据，清理时保留
   S = blankState();
@@ -1672,6 +1700,7 @@ function allWeekIds(){
   const set = new Set([S.config.currentWeekId]);
   S.accountList.forEach(a => (a.charList||[]).forEach(c => Object.keys(c.weeklyRecord).forEach(w => set.add(w))));
   (S.lootList || []).forEach(l => { if (l.weekId) set.add(l.weekId); });
+  (S.dropList || []).forEach(d => { if (d.weekId) set.add(d.weekId); });
   return Array.from(set).sort().reverse(); // 新周在前
 }
 // 周ID → 该周周一日期（用于推算上一周）
@@ -1695,43 +1724,58 @@ function deltaBadge(diff, suffix = '%'){
   if (diff < 0) return `<span class="delta down">▼ ${Math.abs(diff)}${suffix}</span>`;
   return `<span class="delta same">持平</span>`;
 }
-// 收益统计：按自己的角色汇总分红所得（所选周 + 累计）
+// 收益统计：按自己的角色汇总（分红所得 + 出货所得，所选周 + 累计）
 function incomeByChar(week){
   const idx = {};
   S.accountList.forEach(a => (a.charList || []).forEach(c => { idx[c.id] = { accName: a.name, charName: c.name, color: jobColor(c.jobId) }; }));
   const map = {};
+  const ensure = (id, charName, accName) => {
+    if (map[id]) return map[id];
+    const known = idx[id];
+    return map[id] = {
+      id,
+      accName: known ? known.accName : (accName || '（已删除）'),
+      charName: known ? known.charName : (charName || '已删除角色'),
+      color: known ? known.color : 'var(--text-3)',
+      week: 0, paid: 0, unpaid: 0, all: 0, records: 0,
+      lootWeek: 0, dropWeek: 0, lootAll: 0, dropAll: 0
+    };
+  };
+  // 分红所得
   (S.lootList || []).forEach(l => (l.participants || []).forEach(p => {
     if (!p.selfCharId) return;
-    const known = idx[p.selfCharId];
-    const m = map[p.selfCharId] || (map[p.selfCharId] = {
-      id: p.selfCharId,
-      accName: known ? known.accName : '（已删除）',
-      charName: known ? known.charName : (p.selfCharName || '已删除角色'),
-      color: known ? known.color : 'var(--text-3)',
-      week: 0, paid: 0, unpaid: 0, all: 0, records: 0
-    });
+    const m = ensure(p.selfCharId, p.selfCharName);
     const amt = p.amount || 0;
     if (l.weekId === week){
-      m.week += amt;
-      m.records++;
+      m.week += amt; m.lootWeek += amt; m.records++;
       if (p.paid) m.paid += amt; else m.unpaid += amt;
     }
-    m.all += amt;
+    m.all += amt; m.lootAll += amt;
   }));
-  // 没有分红记录的角色也列出，便于对照
+  // 出货所得
+  (S.dropList || []).forEach(d => {
+    if (!d.charId) return;
+    const m = ensure(d.charId, d.charName, d.accName);
+    const amt = d.price || 0;
+    if (d.weekId === week){ m.week += amt; m.dropWeek += amt; m.records++; }
+    m.all += amt; m.dropAll += amt;
+  });
+  // 没有收益记录的角色也列出，便于对照
   S.accountList.forEach(a => (a.charList || []).forEach(c => {
     if (map[c.id]) return;
-    map[c.id] = { id: c.id, accName: a.name, charName: c.name, color: jobColor(c.jobId), week: 0, paid: 0, unpaid: 0, all: 0, records: 0 };
+    map[c.id] = { id: c.id, accName: a.name, charName: c.name, color: jobColor(c.jobId), week: 0, paid: 0, unpaid: 0, all: 0, records: 0, lootWeek: 0, dropWeek: 0, lootAll: 0, dropAll: 0 };
   }));
   return Object.values(map).sort((x, y) => y.week - x.week || y.all - x.all);
 }
-// 收益统计：把角色的分红按账号汇总
+// 收益统计：把角色的收益按账号汇总
 function incomeByAccount(week){
   const map = {};
-  S.accountList.forEach(a => { map[a.name] = { accName: a.name, week: 0, paid: 0, unpaid: 0, all: 0, records: 0, chars: (a.charList || []).length }; });
+  const blank = () => ({ week: 0, paid: 0, unpaid: 0, all: 0, records: 0, lootWeek: 0, dropWeek: 0, lootAll: 0, dropAll: 0 });
+  S.accountList.forEach(a => { map[a.name] = Object.assign({ accName: a.name, chars: (a.charList || []).length }, blank()); });
   incomeByChar(week).forEach(r => {
-    const m = map[r.accName] || (map[r.accName] = { accName: r.accName, week: 0, paid: 0, unpaid: 0, all: 0, records: 0, chars: 0 });
+    const m = map[r.accName] || (map[r.accName] = Object.assign({ accName: r.accName, chars: 0 }, blank()));
     m.week += r.week; m.paid += r.paid; m.unpaid += r.unpaid; m.all += r.all; m.records += r.records;
+    m.lootWeek += r.lootWeek; m.dropWeek += r.dropWeek; m.lootAll += r.lootAll; m.dropAll += r.dropAll;
   });
   return Object.values(map).sort((x, y) => y.week - x.week || y.all - x.all);
 }
@@ -1822,22 +1866,24 @@ function renderStats(){
   else if (dim === 'charIncome' || dim === 'accountIncome'){
     // 收益统计：所选周收益最高者加称号（角色=运气王，账号=欧皇）
     const isAcc = dim === 'accountIncome';
-    if (!(S.lootList || []).length){
-      body.innerHTML = '<div class="empty"><div class="icon">💰</div>暂无分红记录，先到「分红」页记一笔</div>';
+    if (!(S.lootList || []).length && !(S.dropList || []).length){
+      body.innerHTML = '<div class="empty"><div class="icon">💰</div>暂无收益记录，先到「分红」或「出货」页记一笔</div>';
       return;
     }
     const rows = isAcc ? incomeByAccount(week) : incomeByChar(week);
     const maxWeek = Math.max(0, ...rows.map(r => r.week));
-    let html = `<div class="mut" style="margin-bottom:8px;font-size:12px">收益为分红所得（含待分红，不含未售出物品）；「${isAcc ? '欧皇' : '运气王'}」为所选周 ${week} 收益最高的${isAcc ? '账号' : '角色'}</div>`;
+    let html = `<div class="mut" style="margin-bottom:8px;font-size:12px">收益 = 分红所得 + 出货所得（分红含待分红，不含未售出物品）；「${isAcc ? '欧皇' : '运气王'}」为所选周 ${week} 收益最高的${isAcc ? '账号' : '角色'}</div>`;
     html += '<div class="tbl-wrap"><table><thead><tr>';
     html += isAcc ? '<th>账号</th><th class="num">角色数</th>' : '<th>账号</th><th>角色</th>';
-    html += '<th class="num">所选周收益</th><th class="num">已收</th><th class="num">待收</th><th class="num">累计收益</th><th class="num">分成次数</th></tr></thead><tbody>';
+    html += '<th class="num">所选周收益</th><th class="num">其中分红</th><th class="num">其中出货</th><th class="num">已收</th><th class="num">待收</th><th class="num">累计收益</th><th class="num">次数</th></tr></thead><tbody>';
     rows.forEach(r => {
       const king = maxWeek > 0 && r.week === maxWeek ? `<span class="loot-king ${isAcc ? 'ou' : ''}">${isAcc ? '欧皇' : '运气王'}</span>` : '';
       html += isAcc
         ? `<tr><td>${esc(r.accName)}${king}</td><td class="num">${r.chars}</td>`
         : `<tr><td>${esc(r.accName)}</td><td><span class="job-dot" style="background:${r.color}"></span><b style="color:${r.color}">${esc(r.charName)}</b>${king}</td>`;
       html += `<td class="num"><b>${fmtGold(r.week)}</b></td>
+        <td class="num">${fmtGold(r.lootWeek)}</td>
+        <td class="num">${fmtGold(r.dropWeek)}</td>
         <td class="num">${fmtGold(r.paid)}</td>
         <td class="num">${r.unpaid ? `<span class="loot-diff">${fmtGold(r.unpaid)}</span>` : '0'}</td>
         <td class="num">${fmtGold(r.all)}</td>
@@ -2391,6 +2437,181 @@ $('#modalBody').addEventListener('input', e => {
 });
 
 /* =====================================================================
+ * 出货页：个人出货记账（账号 / 角色 / 物品 / 售价 / 出售时间）
+ * 出货收益并入「统计 → 角色收益 / 账号收益」，按出售时间归属到周
+ * ===================================================================== */
+function dropById(id){ return (S.dropList || []).find(d => d.id === id); }
+
+// 按出售日期推算归属周（取当天中午，避免落在重置时刻边界上）
+function dropWeekOf(dateStr){
+  const d = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
+  return computeCurrentWeekId(isNaN(d.getTime()) ? new Date() : d);
+}
+
+function dropCharOptions(accId, selected){
+  const acc = S.accountList.find(a => a.id === accId);
+  const list = acc ? (acc.charList || []) : [];
+  if (!list.length) return '<option value="">该账号暂无角色</option>';
+  return list.map(c => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>${esc(c.name)}（${esc(charJobName(c))}）</option>`).join('');
+}
+
+function renderDrop(){
+  if (!S) return;
+  const oldScroll = $('#dropBody .tbl-wrap')?.scrollTop || 0;
+  const weekSel = $('#dropWeek');
+  const weeks = allWeekIds();
+  const curVal = weekSel.value || S.config.currentWeekId;
+  weekSel.innerHTML = weeks.map(w => `<option value="${w}">${w}${w === S.config.currentWeekId ? '（本周）' : ''}</option>`).join('');
+  weekSel.value = weeks.includes(curVal) ? curVal : S.config.currentWeekId;
+  const week = weekSel.value;
+  const kw = $('#dropSearch').value.trim().toLowerCase();
+
+  const all = S.dropList || [];
+  const weekList = all.filter(d => d.weekId === week);
+  const weekSum = weekList.reduce((s, d) => s + (d.price || 0), 0);
+  const allSum = all.reduce((s, d) => s + (d.price || 0), 0);
+  const best = weekList.slice().sort((a, b) => (b.price || 0) - (a.price || 0))[0];
+
+  const cells = [
+    ['本周出货', String(weekList.length), ''],
+    ['本周收益', fmtGold(weekSum), 'gold'],
+    ['累计收益', fmtGold(allSum), 'pri'],
+    ['最高单价', best ? `${esc(best.itemName)} ${fmtGold(best.price)}` : '—', '']
+  ];
+  $('#dropSum').innerHTML = cells.map(([k, v, cls]) => `<div class="cell"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`).join('');
+
+  const list = weekList
+    .filter(d => !kw || `${d.itemName || ''} ${d.charName || ''} ${d.accName || ''}`.toLowerCase().includes(kw))
+    .sort((a, b) => (b.soldAt || '').localeCompare(a.soldAt || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+  $('#dropCount').textContent = `${list.length} 条记录`;
+
+  if (!list.length){
+    $('#dropBody').innerHTML = `<div class="empty"><div class="icon">🎁</div>${weekList.length ? '没有符合搜索条件的记录' : '本周还没有出货记录，点击右上角「+ 记录出货」开始记账'}</div>`;
+    return;
+  }
+
+  const rows = list.map(d => `<tr>
+    <td>${esc(d.soldAt || '')}</td>
+    <td>${esc(d.accName || '')}</td>
+    <td>${esc(d.charName || '')}</td>
+    <td><b>${esc(d.itemName || '')}</b></td>
+    <td class="num"><b style="color:var(--warn)">${fmtGold(d.price)}</b></td>
+    <td class="num" style="white-space:nowrap">
+      <button class="btn xs" onclick="openDropModal('${d.id}')">编辑</button>
+      <button class="btn xs danger" onclick="deleteDrop('${d.id}')">删除</button>
+    </td>
+  </tr>`).join('');
+
+  $('#dropBody').innerHTML = `<div class="tbl-wrap"><table><thead><tr>
+    <th>出售时间</th><th>账号</th><th>角色</th><th>物品名称</th><th class="num">出售价格</th><th class="num">操作</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
+
+  const w = $('#dropBody .tbl-wrap');
+  if (w) w.scrollTop = oldScroll;
+  fitTables();
+}
+
+function openDropModal(id){
+  const d = id ? dropById(id) : null;
+  if (!S.accountList.length){
+    openModal('记录出货',
+      '<div class="empty"><div class="icon">👤</div>还没有账号，请先到「管理 → 账号管理」添加账号和角色</div>',
+      [{ text: '知道了', cls: 'primary', fn: closeModal }]);
+    return;
+  }
+  const acc = d && d.accId ? (S.accountList.find(a => a.id === d.accId) || S.accountList[0]) : S.accountList[0];
+  const accId = acc.id;
+  const defaultChar = d ? d.charId : ((acc.charList || [])[0] || {}).id;
+  const itemNames = [...new Set((S.dropList || []).map(x => x.itemName).filter(Boolean))];
+
+  openModal(d ? '编辑出货记录' : '记录出货',
+    `<div class="flex" style="gap:12px;flex-wrap:wrap">
+      <div class="form-row" style="flex:1;min-width:150px"><label>账号</label>
+        <select id="dropAcc">${S.accountList.map(a => `<option value="${a.id}" ${a.id === accId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
+      </div>
+      <div class="form-row" style="flex:1;min-width:150px"><label>角色</label>
+        <select id="dropChar">${dropCharOptions(accId, defaultChar || '')}</select>
+      </div>
+      <div class="form-row" style="flex:2;min-width:180px"><label>物品名称</label>
+        <input id="dropItem" list="dropItemList" placeholder="例如：钻石" value="${esc(d ? d.itemName : '')}">
+        <datalist id="dropItemList">${itemNames.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+      </div>
+      <div class="form-row" style="flex:1;min-width:130px"><label>出售价格</label>
+        <input type="number" id="dropPrice" min="0" placeholder="金币" value="${d ? (d.price || 0) : ''}">
+      </div>
+      <div class="form-row" style="flex:1;min-width:150px"><label>出售时间</label>
+        <input type="date" id="dropDate" value="${d ? (d.soldAt || todayStr()) : todayStr()}">
+      </div>
+    </div>
+    <div class="loot-hint">出货收益会计入「统计 → 角色收益 / 账号收益」，并按出售时间归到对应的周。</div>`,
+    [
+      { text: '取消', fn: closeModal },
+      { text: '保存', cls: 'primary', fn: () => saveDrop(d ? d.id : null) }
+    ]);
+}
+
+function saveDrop(id){
+  const accId = $('#dropAcc').value;
+  const charId = $('#dropChar').value;
+  const itemName = $('#dropItem').value.trim();
+  const price = Math.max(0, Math.round(Number($('#dropPrice').value) || 0));
+  const soldAt = $('#dropDate').value || todayStr();
+  if (!itemName){ toast('请填写物品名称'); return; }
+  if (!charId){ toast('请选择出货角色'); return; }
+  if (price <= 0){ toast('请填写出售价格'); return; }
+
+  const acc = S.accountList.find(a => a.id === accId);
+  const ch = acc && (acc.charList || []).find(c => c.id === charId);
+  const old = id ? dropById(id) : null;
+  const rec = {
+    id: old ? old.id : uid('d'),
+    weekId: dropWeekOf(soldAt),
+    accId: acc ? acc.id : '',
+    accName: acc ? acc.name : (old ? old.accName : ''),
+    charId,
+    charName: ch ? ch.name : (old ? old.charName : ''),
+    itemName,
+    price,
+    soldAt,
+    createdAt: old ? old.createdAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  if (old) S.dropList[S.dropList.findIndex(x => x.id === id)] = rec;
+  else S.dropList.push(rec);
+  markDirty();
+  closeModal();
+  renderDrop();
+  renderStats();
+  toast((old ? '已更新出货：' : '已记录出货：') + itemName + ' ' + fmtGold(price) + ' 金币');
+}
+
+function deleteDrop(id){
+  const d = dropById(id);
+  if (!d) return;
+  confirmModal('删除出货记录',
+    `确定删除「${esc(d.itemName || '')}」（${esc(d.charName || '')} · ${esc(d.soldAt || '')}）这条出货记录吗？`,
+    () => {
+      S.dropList = S.dropList.filter(x => x.id !== id);
+      markDirty();
+      renderDrop();
+      renderStats();
+      toast('已删除出货记录');
+    }, '删除');
+}
+
+$('#btnAddDrop').addEventListener('click', () => openDropModal(null));
+$('#dropWeek').addEventListener('change', renderDrop);
+$('#dropSearch').addEventListener('input', renderDrop);
+// 弹窗内切换账号时联动刷新角色下拉
+$('#modalBody').addEventListener('change', e => {
+  if (e.target.id === 'dropAcc'){
+    const charSel = $('#dropChar');
+    if (charSel) charSel.innerHTML = dropCharOptions(e.target.value, '');
+  }
+});
+
+/* =====================================================================
  * 数据页
  * ===================================================================== */
 function renderDataPreview(){
@@ -2403,6 +2624,7 @@ function renderDataPreview(){
     `封印单价：<b>${fmtGold(S.config.sealUnitPrice || 0)}</b> 金币/个 · ` +
     `开机自启：<b>${S.config.autoStart === false ? '关闭' : '开启'}</b> · ` +
     `分红记录：<b>${(S.lootList || []).length}</b> 条 · ` +
+    `出货记录：<b>${(S.dropList || []).length}</b> 条 · ` +
     `历史周数：<b>${allWeekIds().length}</b>`;
   $('#cfgResetWeekday').value = S.config.resetWeekday;
   $('#cfgResetHour').value = S.config.resetHour;
@@ -2495,6 +2717,7 @@ function switchPage(name){
   if (name === 'manage') renderManage();
   if (name === 'stats') renderStats();
   if (name === 'loot') renderLoot();
+  if (name === 'drop') renderDrop();
   if (name === 'data') renderDataPreview();
   fitTables();
 }
@@ -2530,6 +2753,7 @@ function renderAll(){
   renderManage();
   renderStats();
   renderLoot();
+  renderDrop();
   renderDataPreview();
   tick();
   fitTables();
