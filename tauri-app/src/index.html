@@ -984,23 +984,23 @@ function fmtRecTime(rec){
 /* =====================================================================
  * 总览页渲染
  * ===================================================================== */
-// 总览页顶部：所选周收益最高的角色（运气王）与账号（欧皇）
-function renderWeekKings(week){
+// 总览页顶部：累计收益最高的角色（运气王）与账号（欧皇），不按周统计
+function renderWeekKings(){
   const el = $('#weekKings');
   if (!el || !S) return;
-  const chars = incomeByChar(week).filter(r => r.week > 0);
-  const accs = incomeByAccount(week).filter(r => r.week > 0);
+  const chars = incomeByChar('').filter(r => r.all > 0);
+  const accs = incomeByAccount('').filter(r => r.all > 0);
   if (!chars.length){
-    el.innerHTML = `<span class="mut" style="font-size:12px">${esc(week)} 暂无收益记录</span>`;
+    el.innerHTML = '<span class="mut" style="font-size:12px">暂无收益记录</span>';
     return;
   }
-  const topC = Math.max(...chars.map(r => r.week));
-  const topA = Math.max(...accs.map(r => r.week));
-  const namesC = chars.filter(r => r.week === topC).map(r => r.charName).join('、');
-  const namesA = accs.filter(r => r.week === topA).map(r => r.accName).join('、');
+  const topC = Math.max(...chars.map(r => r.all));
+  const topA = Math.max(...accs.map(r => r.all));
+  const namesC = chars.filter(r => r.all === topC).map(r => r.charName).join('、');
+  const namesA = accs.filter(r => r.all === topA).map(r => r.accName).join('、');
   el.innerHTML =
-    `<span class="king"><span class="loot-king" style="margin-left:0" title="${week} 收益最高的角色：分红 + 出货收益合计 ${fmtGold(topC)} 金币（并列时同时显示）">🍀 运气王</span><b>${esc(namesC)}</b><span class="amt">${fmtGold(topC)}</span></span>` +
-    `<span class="king ou"><span class="loot-king ou" style="margin-left:0" title="${week} 收益最高的账号：该账号下所有角色的分红 + 出货收益合计 ${fmtGold(topA)} 金币（并列时同时显示）">👑 欧皇</span><b>${esc(namesA)}</b><span class="amt">${fmtGold(topA)}</span></span>`;
+    `<span class="king"><span class="loot-king" style="margin-left:0" title="累计收益最高的角色：全部周的分红 + 出货收益合计 ${fmtGold(topC)} 金币（并列时同时显示）">🍀 运气王</span><b>${esc(namesC)}</b><span class="amt">${fmtGold(topC)}</span></span>` +
+    `<span class="king ou"><span class="loot-king ou" style="margin-left:0" title="累计收益最高的账号：该账号下所有角色的分红 + 出货收益合计 ${fmtGold(topA)} 金币（并列时同时显示）">👑 欧皇</span><b>${esc(namesA)}</b><span class="amt">${fmtGold(topA)}</span></span>`;
 }
 
 function renderOverview(){
@@ -1019,7 +1019,7 @@ function renderOverview(){
   const week = wkSel.value;
   const readonly = week !== S.config.currentWeekId;
   $('#overviewWeekHint').style.display = readonly ? '' : 'none';
-  renderWeekKings(week);
+  renderWeekKings();
 
   // 账号筛选下拉
   const sel = $('#filterAccount');
@@ -1907,16 +1907,17 @@ function renderStats(){
       return;
     }
     const rows = isAcc ? incomeByAccount(week) : incomeByChar(week);
-    const maxWeek = Math.max(0, ...rows.map(r => r.week));
-    let html = `<div class="mut" style="margin-bottom:8px;font-size:12px">收益 = 分红所得 + 出货所得（分红含待分红，不含未售出物品）；「${isAcc ? '欧皇' : '运气王'}」为所选周 ${week} 收益最高的${isAcc ? '账号' : '角色'}</div>`;
+    const maxAll = Math.max(0, ...rows.map(r => r.all));
+    // 称号按全部数据的累计收益评选，与所选周无关
+    let html = `<div class="mut" style="margin-bottom:8px;font-size:12px">收益 = 分红所得 + 出货所得（分红含待分红，不含未售出物品）；「${isAcc ? '欧皇' : '运气王'}」为累计收益最高的${isAcc ? '账号' : '角色'}（不按周）</div>`;
     html += '<div class="tbl-wrap"><table><thead><tr>';
     html += isAcc ? '<th>账号</th><th class="num">角色数</th>' : '<th>账号</th><th>角色</th>';
     html += '<th class="num">所选周收益</th><th class="num">其中分红</th><th class="num">其中出货</th><th class="num">已收</th><th class="num">待收</th><th class="num">累计收益</th><th class="num">次数</th></tr></thead><tbody>';
     rows.forEach(r => {
       const kingTip = isAcc
-        ? `${week} 收益最高的账号：该账号下所有角色的分红 + 出货收益合计 ${fmtGold(maxWeek)} 金币（并列时同时显示）`
-        : `${week} 收益最高的角色：分红 + 出货收益合计 ${fmtGold(maxWeek)} 金币（并列时同时显示）`;
-      const king = maxWeek > 0 && r.week === maxWeek ? `<span class="loot-king ${isAcc ? 'ou' : ''}" title="${kingTip}">${isAcc ? '👑 欧皇' : '🍀 运气王'}</span>` : '';
+        ? `累计收益最高的账号：全部周的分红 + 出货收益合计 ${fmtGold(maxAll)} 金币（并列时同时显示）`
+        : `累计收益最高的角色：全部周的分红 + 出货收益合计 ${fmtGold(maxAll)} 金币（并列时同时显示）`;
+      const king = maxAll > 0 && r.all === maxAll ? `<span class="loot-king ${isAcc ? 'ou' : ''}" title="${kingTip}">${isAcc ? '👑 欧皇' : '🍀 运气王'}</span>` : '';
       html += isAcc
         ? `<tr><td>${accChip(r.accName)}${king}</td><td class="num">${r.chars}</td>`
         : `<tr><td>${accChip(r.accName)}</td><td><span class="job-dot" style="background:${r.color}"></span><b style="color:${r.color}">${esc(r.charName)}</b>${king}</td>`;
