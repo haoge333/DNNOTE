@@ -293,7 +293,7 @@ td.loot-items{white-space:normal;min-width:180px}
 .loot-p-row .p-name{flex:1;min-width:120px}
 .loot-p-row .p-char{flex:1;min-width:180px;max-width:280px}
 .loot-p-row .p-amt{width:110px}
-.loot-p-row .p-role{font-size:12px;color:var(--text-2);min-width:52px}
+.loot-p-row .p-role{font-size:12px;color:var(--text-2);min-width:18px;text-align:center}
 .loot-p-row .p-opt{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);white-space:nowrap}
 
 .loot-hint{font-size:12px;color:var(--text-2);line-height:1.9;margin-top:8px}
@@ -2149,7 +2149,7 @@ function lootPRow(p, myChars){
   const isSelf = !!p.selfCharId;
   const known = myChars.some(c => c.id === p.selfCharId);
   const head = isSelf
-    ? `<span class="p-role">我的角色</span>
+    ? `<span class="p-role" title="这是我自己">我</span>
        <select class="p-char">
          <option value="">选择角色</option>
          ${myChars.map(c => `<option value="${c.id}" ${p.selfCharId === c.id ? 'selected' : ''}>${esc(c.acc)} / ${esc(c.name)}</option>`).join('')}
