@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>龙之谷小助手</title>
+<style>
+/* ========== 基础变量与主题 ========== */
+:root{
+  --bg:#f1f5f9; --bg-card:#ffffff; --bg-hover:#f8fafc; --bg-active:#eff6ff;
+  --border:#e2e8f0; --text:#0f172a; --text-2:#64748b; --text-3:#94a3b8;
+  --primary:#2563eb; --primary-d:#1d4ed8; --success:#16a34a; --danger:#dc2626;
+  --warn:#d97706; --shadow:0 1px 3px rgba(0,0,0,.08);
+  --radius:8px;
+}
+html.dark{
+  --bg:#0b1220; --bg-card:#131c2e; --bg-hover:#1a2438; --bg-active:#1e3a5f;
+  --border:#24314a; --text:#e2e8f0; --text-2:#94a3b8; --text-3:#64748b;
+  --primary:#3b82f6; --primary-d:#2563eb; --success:#22c55e; --danger:#ef4444;
+  --warn:#f59e0b; --shadow:0 1px 3px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;transition:background .2s,color .2s}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;font-size:inherit}
+input,select{font-family:inherit;font-size:inherit;color:var(--text);background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:6px 10px;outline:none;transition:border-color .15s}
+input:focus,select:focus{border-color:var(--primary)}
+h1,h2,h3{font-weight:600}
+
+/* ========== 顶部栏 ========== */
+header{background:var(--bg-card);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;gap:16px;height:56px;position:sticky;top:0;z-index:50;box-shadow:var(--shadow)}
+header .logo{font-size:18px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:8px}
+header .spacer{flex:1}
+.week-badge{background:var(--bg-active);border:1px solid var(--primary);color:var(--primary);padding:4px 12px;border-radius:20px;font-weight:600;font-size:13px}
+.countdown{font-variant-numeric:tabular-nums;color:var(--text-2);font-size:13px}
+.countdown b{color:var(--warn);font-size:15px}
+
+/* ========== 导航标签 ========== */
+nav.tabs{background:var(--bg-card);border-bottom:1px solid var(--border);padding:0 20px;display:flex;gap:4px;position:sticky;top:56px;z-index:49}
+nav.tabs button{padding:12px 18px;font-size:14px;color:var(--text-2);border-bottom:2px solid transparent;transition:all .15s}
+nav.tabs button:hover{color:var(--text)}
+nav.tabs button.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+
+/* ========== 主内容区 ========== */
+main{max-width:1400px;margin:0 auto;padding:20px}
+.page{display:none}
+.page.active{display:block}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card h2{font-size:16px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.card h2 .spacer{flex:1}
+
+/* ========== 按钮 ========== */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;transition:all .15s;border:1px solid var(--border);background:var(--bg-card);color:var(--text)}
+.btn:hover{background:var(--bg-hover);border-color:var(--text-3)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-d);border-color:var(--primary-d)}
+.btn.success{background:var(--success);border-color:var(--success);color:#fff}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn.warn{background:var(--warn);border-color:var(--warn);color:#fff}
+.btn.sm{padding:4px 10px;font-size:12px}
+.btn.xs{padding:2px 8px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* ========== 表格 ========== */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius)}
+table{width:100%;border-collapse:collapse;background:var(--bg-card)}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+th{background:var(--bg-hover);font-weight:600;color:var(--text-2);font-size:12px;position:sticky;top:0}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--bg-hover)}
+td.num,th.num{text-align:center}
+
+/* 总览表格单元格 */
+.cell-nest{width:64px;min-width:64px;height:44px;text-align:center;cursor:pointer;user-select:none;position:relative;transition:background .1s}
+.cell-nest:hover{background:var(--bg-active)}
+.cell-nest.cleared{background:#dcfce7;color:#15803d}
+html.dark .cell-nest.cleared{background:#14532d;color:#86efac}
+.cell-nest.disabled{background:var(--bg-hover);color:var(--text-3);cursor:not-allowed;opacity:.4}
+.cell-nest .mark{font-size:16px;font-weight:700}
+.cell-nest .rec-time{display:block;font-size:10px;color:var(--text-3);margin-top:2px;transform:scale(.9)}
+.row-acc td{background:var(--bg-active);font-weight:600;cursor:pointer}
+.row-acc td .arrow{display:inline-block;transition:transform .2s;margin-right:6px;color:var(--text-2)}
+.row-acc.collapsed td .arrow{transform:rotate(-90deg)}
+.char-hidden-row td{opacity:.5;font-style:italic}
+
+/* ========== 管理页布局 ========== */
+.manage-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px}
+.manage-tabs button{padding:10px 20px;font-size:14px;color:var(--text-2);border-bottom:2px solid transparent}
+.manage-tabs button.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+.list-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;background:var(--bg-card);transition:all .15s}
+.list-item:hover{border-color:var(--text-3)}
+.list-item .info{flex:1;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.list-item .name{font-weight:600;font-size:14px}
+.list-item .meta{color:var(--text-2);font-size:12px}
+.list-item .actions{display:flex;gap:6px}
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;background:var(--bg-hover);border:1px solid var(--border)}
+.job-dot{width:12px;height:12px;border-radius:50%;display:inline-block;flex-shrink:0}
+.switch{position:relative;width:36px;height:20px;background:var(--border);border-radius:10px;cursor:pointer;transition:background .2s;flex-shrink:0}
+.switch.on{background:var(--success)}
+.switch::after{content:'';position:absolute;width:16px;height:16px;background:#fff;border-radius:50%;top:2px;left:2px;transition:left .2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.switch.on::after{left:18px}
+
+/* ========== 模态框 ========== */
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(2px)}
+.modal-mask.show{display:flex}
+.modal{background:var(--bg-card);border-radius:12px;width:90%;max-width:480px;max-height:85vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.modal-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-head h3{font-size:15px}
+.modal-head .close{font-size:20px;color:var(--text-3);line-height:1;padding:4px}
+.modal-body{padding:20px}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+.form-row{margin-bottom:14px}
+.form-row label{display:block;margin-bottom:6px;font-size:13px;color:var(--text-2);font-weight:500}
+.form-row input,.form-row select{width:100%}
+.form-row input[type=color]{padding:2px;height:36px;cursor:pointer}
+.checkbox-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;max-height:220px;overflow-y:auto;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
+.checkbox-grid label{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:4px 6px;border-radius:4px;margin:0}
+.checkbox-grid label:hover{background:var(--bg-active)}
+.checkbox-grid input{width:auto;accent-color:var(--primary)}
+
+/* ========== 统计页 ========== */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.stat-card{border:1px solid var(--border);border-radius:var(--radius);padding:16px;background:var(--bg-card)}
+.stat-card .title{font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.stat-card .bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
+.stat-card .bar-row .lbl{width:90px;overflow:hidden;text-overflow:ellipsis;color:var(--text-2)}
+.stat-card .bar{flex:1;height:8px;background:var(--bg-hover);border-radius:4px;overflow:hidden}
+.stat-card .bar>i{display:block;height:100%;background:var(--primary);border-radius:4px;transition:width .3s}
+.stat-card .val{width:56px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text-2)}
+.progress-ring{display:flex;align-items:center;gap:14px}
+.ring{width:64px;height:64px;border-radius:50%;background:conic-gradient(var(--success) calc(var(--p)*1%),var(--bg-hover) 0);display:flex;align-items:center;justify-content:center;position:relative}
+.ring::before{content:'';width:48px;height:48px;background:var(--bg-card);border-radius:50%;position:absolute}
+.ring span{position:relative;font-weight:700;font-size:13px}
+
+/* ========== 提示条 ========== */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--text);color:var(--bg);padding:10px 20px;border-radius:8px;font-size:13px;z-index:200;transition:transform .25s;box-shadow:0 4px 12px rgba(0,0,0,.2);pointer-events:none;opacity:0}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.banner{padding:10px 16px;border-radius:var(--radius);margin-bottom:16px;font-size:13px;display:flex;align-items:center;gap:10px}
+.banner.warn{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+html.dark .banner.warn{background:#451a03;color:#fcd34d;border-color:#78350f}
+.banner.info{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}
+html.dark .banner.info{background:#172554;color:#93c5fd;border-color:#1e3a8a}
+.banner .close{margin-left:auto;color:inherit;opacity:.6}
+
+/* ========== 工具栏 ========== */
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.toolbar .spacer{flex:1}
+.search-box{position:relative}
+.search-box input{padding-left:30px;width:200px}
+.search-box::before{content:'🔍';position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:12px;opacity:.5}
+.empty{text-align:center;padding:40px 20px;color:var(--text-3)}
+.empty .icon{font-size:40px;margin-bottom:10px}
+
+/* 下拉选择周 */
+select.week-select{min-width:130px}
+.mut{color:var(--text-2);font-size:12px}
+.hr{height:1px;background:var(--border);margin:16px 0;border:none}
+.flex{display:flex;align-items:center;gap:10px}
+.grow{flex:1}
+.right{margin-left:auto}
+.hidden-item{opacity:.55}
+.nest-head{writing-mode:horizontal-tb;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+.nest-head .st{font-size:10px;color:var(--text-3);display:block;font-weight:400}
+.link{color:var(--primary);cursor:pointer;text-decoration:underline;font-size:12px}
+.kbd{background:var(--bg-hover);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:11px;font-family:monospace}
+
+@media (max-width:768px){
+  main{padding:12px}
+  header{padding:0 12px}
+  .countdown{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= 顶部栏 ================= -->
+<header>
+  <div class="logo">🐉 龙之谷小助手</div>
+  <div class="week-badge" id="weekBadge" title="当前周ID">--</div>
+  <div class="countdown" id="countdown" title="距离巢穴重置"></div>
+  <div class="spacer"></div>
+  <button class="btn sm" id="btnTheme" title="切换暗黑模式">🌙</button>
+  <button class="btn sm" id="btnLoad">📂 加载存档</button>
+  <button class="btn sm primary" id="btnSave">💾 保存存档</button>
+  <input type="file" id="fileInput" accept=".json,application/json" style="display:none">
+</header>
+
+<!-- ================= 导航 ================= -->
+<nav class="tabs">
+  <button data-page="overview" class="active">📊 总览</button>
+  <button data-page="manage">⚙️ 管理</button>
+  <button data-page="stats">📈 统计</button>
+  <button data-page="data">💾 数据</button>
+</nav>
+
+<main>
+  <!-- 时间异常提示 -->
+  <div class="banner warn" id="timeWarnBanner" style="display:none">
+    <span>⚠️ 检测到本机系统时间发生异常跳变（回退超过1小时），系统时间不准会影响自动重置判断，请校准本机时间。</span>
+    <button class="close" onclick="this.parentElement.style.display='none'">✕</button>
+  </div>
+  <div class="banner info" id="dirtyBanner" style="display:none">
+    <span>📝 数据已修改，尚未保存。请及时点击右上角「保存存档」写入本地 JSON 文件。</span>
+    <button class="close" onclick="this.parentElement.style.display='none'">✕</button>
+  </div>
+
+  <!-- ================= 总览页 ================= -->
+  <section class="page active" id="page-overview">
+    <div class="card">
+      <h2>
+        本周巢穴进度
+        <span class="spacer"></span>
+        <button class="btn sm" id="btnExpandAll">全部展开</button>
+        <button class="btn sm warn" id="btnManualReset">🔄 手动重置本周</button>
+      </h2>
+      <div class="toolbar">
+        <div class="search-box"><input id="searchChar" placeholder="搜索角色名..."></div>
+        <select id="filterAccount"><option value="">全部账号</option></select>
+        <label class="flex" style="font-size:13px;color:var(--text-2)"><input type="checkbox" id="showArchived"> 显示已归档角色</label>
+        <label class="flex" style="font-size:13px;color:var(--text-2)"><input type="checkbox" id="showDisabledNest"> 显示已停用巢穴</label>
+      </div>
+      <div id="overviewTableWrap"></div>
+    </div>
+  </section>
+
+  <!-- ================= 管理页 ================= -->
+  <section class="page" id="page-manage">
+    <div class="card">
+      <div class="manage-tabs">
+        <button data-mtab="account" class="active">账号管理</button>
+        <button data-mtab="char">角色管理</button>
+        <button data-mtab="nest">巢穴管理</button>
+        <button data-mtab="job">职业配置</button>
+      </div>
+      <div id="mtab-account"></div>
+      <div id="mtab-char" style="display:none"></div>
+      <div id="mtab-nest" style="display:none"></div>
+      <div id="mtab-job" style="display:none"></div>
+    </div>
+  </section>
+
+  <!-- ================= 统计页 ================= -->
+  <section class="page" id="page-stats">
+    <div class="card">
+      <h2>
+        通关统计
+        <span class="spacer"></span>
+        <select id="statsWeek" class="week-select"></select>
+        <select id="statsDim">
+          <option value="account">按账号统计</option>
+          <option value="char">按角色统计</option>
+          <option value="nest">按巢穴统计</option>
+        </select>
+      </h2>
+      <div id="statsBody"></div>
+    </div>
+  </section>
+
+  <!-- ================= 数据页 ================= -->
+  <section class="page" id="page-data">
+    <div class="card">
+      <h2>存档数据</h2>
+      <p class="mut" style="margin-bottom:16px;line-height:1.8">
+        本工具全程离线运行，不使用 localStorage，所有数据均保存在你本地选择的 JSON 文件中。<br>
+        • <b>加载存档</b>：选择本地 JSON 文件读取数据。<br>
+        • <b>保存存档</b>：将当前数据写入 / 下载为 JSON 文件。<br>
+        • 建议每周重置后保存一次，避免数据丢失。
+      </p>
+      <div class="flex" style="flex-wrap:wrap;gap:10px">
+        <button class="btn" onclick="document.getElementById('fileInput').click()">📂 加载本地 JSON 存档</button>
+        <button class="btn primary" onclick="saveData()">💾 保存到本地 JSON 文件</button>
+        <button class="btn" onclick="newBlankData()">🆕 新建空白存档</button>
+      </div>
+      <hr class="hr">
+      <h3 style="margin-bottom:10px;font-size:14px">重置设置</h3>
+      <div class="flex" style="flex-wrap:wrap;gap:14px">
+        <label class="flex">重置星期：
+          <select id="cfgResetWeekday">
+            <option value="0">周日</option><option value="1">周一</option><option value="2">周二</option>
+            <option value="3">周三</option><option value="4">周四</option><option value="5">周五</option>
+            <option value="6" selected>周六</option>
+          </select>
+        </label>
+        <label class="flex">重置小时：
+          <input type="number" id="cfgResetHour" min="0" max="23" value="9" style="width:70px"> 点
+        </label>
+        <button class="btn sm" onclick="saveResetCfg()">保存设置</button>
+      </div>
+      <hr class="hr">
+      <h3 style="margin-bottom:10px;font-size:14px">当前数据预览</h3>
+      <div id="dataPreview" class="mut" style="font-size:12px;line-height:1.8"></div>
+    </div>
+  </section>
+</main>
+
+<!-- ================= 通用模态框 ================= -->
+<div class="modal-mask" id="modalMask">
+  <div class="modal">
+    <div class="modal-head"><h3 id="modalTitle"></h3><button class="close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+ * 龙之谷巢穴周本离线管理工具
+ * 纯前端实现：HTML + CSS + JS，无后端，不联网，不使用 localStorage
+ * 数据通过浏览器文件 API 读写本地 JSON 文件
+ * ===================================================================== */
+
+/* ---------------- 全局状态 ---------------- */
+let S = null;                 // 主数据对象（与 JSON 文件结构一致）
+let dirty = false;            // 数据是否有未保存修改
+let fileHandle = null;        // File System Access API 句柄（可选）
+let collapsedAcc = {};        // 总览表格账号折叠状态
+let lastKnownTime = Date.now(); // 用于检测系统时间回退
+let countdownTimer = null;
+
+/* ---------------- 工具函数 ---------------- */
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const uid = p => p + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+function markDirty(){ dirty = true; $('#dirtyBanner').style.display = 'flex'; renderDataPreview(); }
+function clearDirty(){ dirty = false; $('#dirtyBanner').style.display = 'none'; }
+
+/* ---------------- 周ID / 时间计算 ---------------- */
+// ISO 8601 周数计算，返回 "2026-W42" 格式
+function isoWeekId(date){
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+}
+// 计算给定时间的"本周周六 resetHour 点"（即下一个重置点候选）
+function nextResetTime(now = new Date()){
+  const wd = S.config.resetWeekday, hr = S.config.resetHour;
+  const d = new Date(now);
+  let diff = (wd - d.getDay() + 7) % 7;
+  const candidate = new Date(d); candidate.setDate(d.getDate() + diff); candidate.setHours(hr, 0, 0, 0);
+  if (now >= candidate) candidate.setDate(candidate.getDate() + 7); // 已过本周重置点，取下周
+  return candidate;
+}
+// 根据当前时间计算应有的周ID：
+// 找到最近一个已过去的重置点（周六9点），取其ISO周作为周ID
+// 同一重置周期内周ID保持一致，跨过重置点后周ID递增
+function computeCurrentWeekId(now = new Date()){
+  const wd = S.config.resetWeekday, hr = S.config.resetHour;
+  const d = new Date(now);
+  let diff = (d.getDay() - wd + 7) % 7;      // 距离上一个重置日的天数
+  const start = new Date(d);
+  start.setDate(d.getDate() - diff);
+  start.setHours(hr, 0, 0, 0);
+  if (now < start) start.setDate(start.getDate() - 7); // 未到今日重置点，取上周
+  return isoWeekId(start);
+}
+// 倒计时到下次重置
+function fmtCountdown(ms){
+  if (ms < 0) ms = 0;
+  const s = Math.floor(ms / 1000);
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  return `${d}天 ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+/* ---------------- 数据初始化 / 迁移 ---------------- */
+function blankState(){
+  return {
+    config: { resetWeekday: 6, resetHour: 9, currentWeekId: '' },
+    jobList: [
+      { id: 'j_default1', name: '狂战士', color: '#ef4444' },
+      { id: 'j_default2', name: '魔法师', color: '#3b82f6' },
+      { id: 'j_default3', name: '弓箭手', color: '#22c55e' },
+      { id: 'j_default4', name: '牧师',   color: '#eab308' }
+    ],
+    nestList: [],
+    accountList: []
+  };
+}
+// 兼容旧格式：weeklyRecord 值若为 boolean 则转为 {c,t} 对象
+function migrateState(st){
+  st.config = Object.assign({ resetWeekday: 6, resetHour: 9, currentWeekId: '' }, st.config);
+  st.jobList = st.jobList || []; st.nestList = st.nestList || []; st.accountList = st.accountList || [];
+  st.accountList.forEach(a => (a.charList || []).forEach(c => {
+    c.weeklyRecord = c.weeklyRecord || {};
+    c.availableNestIds = c.availableNestIds || [];
+    if (c.enable === undefined) c.enable = true;
+    Object.keys(c.weeklyRecord).forEach(w => {
+      const rec = c.weeklyRecord[w] || {};
+      Object.keys(rec).forEach(n => {
+        if (typeof rec[n] === 'boolean') rec[n] = { c: rec[n], t: null };
+      });
+      c.weeklyRecord[w] = rec;
+    });
+  }));
+  return st;
+}
+function newBlankData(){
+  if (!confirm('新建空白存档将清空当前未保存数据，确定继续？')) return;
+  S = blankState();
+  S.config.currentWeekId = computeCurrentWeekId();
+  fileHandle = null; clearDirty();
+  renderAll(); toast('已创建空白存档');
+}
+
+/* ---------------- 文件读写 ---------------- */
+$('#fileInput').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const st = JSON.parse(reader.result);
+      S = migrateState(st);
+      S.config.currentWeekId = computeCurrentWeekId();
+      fileHandle = null; clearDirty();
+      checkAutoReset();
+      renderAll();
+      toast('存档加载成功');
+    } catch (err) { alert('JSON 解析失败：' + err.message); }
+  };
+  reader.readAsText(f);
+  e.target.value = '';
+});
+$('#btnLoad').addEventListener('click', () => $('#fileInput').click());
+
+async function saveData(){
+  if (!S) { toast('当前无数据'); return; }
+  const json = JSON.stringify(S, null, 2);
+  const fname = `龙之谷存档_${S.config.currentWeekId}.json`;
+  // 优先使用 File System Access API（Chrome/Edge），可直接写入用户选择的文件
+  if (window.showSaveFilePicker) {
+    try {
+      if (!fileHandle) {
+        fileHandle = await showSaveFilePicker({
+          suggestedName: fname,
+          types: [{ description: 'JSON 存档', accept: { 'application/json': ['.json'] } }]
+        });
+      }
+      const w = await fileHandle.createWritable();
+      await w.write(json); await w.close();
+      clearDirty(); toast('已保存到 ' + fileHandle.name);
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return; // 用户取消
+      fileHandle = null; // 句柄失效则降级下载
+    }
+  }
+  // 降级：浏览器下载
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = fname; a.click();
+  URL.revokeObjectURL(a.href);
+  clearDirty(); toast('已下载 ' + fname);
+}
+$('#btnSave').addEventListener('click', saveData);
+
+/* ---------------- 周重置逻辑 ---------------- */
+function doReset(manual){
+  const newWeek = computeCurrentWeekId();
+  const oldWeek = S.config.currentWeekId;
+  if (manual || newWeek !== oldWeek) {
+    S.config.currentWeekId = newWeek;
+    markDirty(); renderAll();
+    toast(manual ? `已手动重置，进入新的一周 ${newWeek}` : `已自动重置：${oldWeek} → ${newWeek}`);
+    return true;
+  }
+  return false;
+}
+function checkAutoReset(){
+  const cur = computeCurrentWeekId();
+  if (S.config.currentWeekId && S.config.currentWeekId !== cur) doReset(false);
+  else if (!S.config.currentWeekId) { S.config.currentWeekId = cur; }
+}
+function manualReset(){
+  if (!confirm(`确定要手动重置本周进度吗？\n\n当前周：${S.config.currentWeekId}\n重置后本周所有通关勾选将清空（历史周记录保留）。`)) return;
+  doReset(true);
+}
+$('#btnManualReset').addEventListener('click', manualReset);
+
+/* ---------------- 数据访问辅助 ---------------- */
+const jobById   = id => S.jobList.find(j => j.id === id);
+const nestById  = id => S.nestList.find(n => n.id === id);
+const accById   = id => S.accountList.find(a => a.id === id);
+function charById(cid){ for (const a of S.accountList){ const c = (a.charList||[]).find(x=>x.id===cid); if (c) return {acc:a, char:c}; } return null; }
+function jobColor(jobId){ const j = jobById(jobId); return j ? j.color : '#94a3b8'; }
+function jobName(jobId){ const j = jobById(jobId); return j ? j.name : '未设置'; }
+// 当前周角色某巢穴记录
+function getRec(char, nestId, weekId = S.config.currentWeekId){
+  const w = char.weeklyRecord[weekId]; if (!w) return null;
+  return w[nestId] || null;
+}
+function setRec(char, nestId, val){
+  const w = S.config.currentWeekId;
+  char.weeklyRecord[w] = char.weeklyRecord[w] || {};
+  if (val === null) delete char.weeklyRecord[w][nestId];
+  else char.weeklyRecord[w][nestId] = val;
+}
+
+/* =====================================================================
+ * 总览页渲染
+ * ===================================================================== */
+function renderOverview(){
+  const wrap = $('#overviewTableWrap');
+  const search = $('#searchChar').value.trim().toLowerCase();
+  const filterAcc = $('#filterAccount').value;
+  const showArchived = $('#showArchived').checked;
+  const showDisabledNest = $('#showDisabledNest').checked;
+
+  // 账号筛选下拉
+  const sel = $('#filterAccount');
+  const curVal = sel.value;
+  sel.innerHTML = '<option value="">全部账号</option>' + S.accountList.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
+  sel.value = curVal;
+
+  // 可见巢穴列
+  const nests = S.nestList.filter(n => n.enable || showDisabledNest);
+  if (S.accountList.length === 0){
+    wrap.innerHTML = `<div class="empty"><div class="icon">🗂️</div>暂无账号数据，请先到「管理」页添加账号和角色</div>`;
+    return;
+  }
+
+  let html = `<div class="tbl-wrap"><table><thead><tr><th style="min-width:170px">账号 / 角色</th>`;
+  nests.forEach(n => {
+    html += `<th class="num nest-head" title="${esc(n.name)}${n.enable?'':'（已停用）'}">${esc(n.name)}${n.enable?'':'<span class="st">停用</span>'}</th>`;
+  });
+  html += `<th class="num">本周进度</th><th class="num">批量</th></tr></thead><tbody>`;
+
+  let anyRow = false;
+  S.accountList.forEach(acc => {
+    if (filterAcc && acc.id !== filterAcc) return;
+    // 该账号下符合搜索条件的角色
+    const chars = (acc.charList || []).filter(c => {
+      if (!showArchived && !c.enable) return false;
+      if (search && !c.name.toLowerCase().includes(search)) return false;
+      return true;
+    });
+    if (search && chars.length === 0) return;
+    anyRow = true;
+    const collapsed = collapsedAcc[acc.id];
+    // 账号行
+    const accTotal = chars.reduce((s,c) => s + c.availableNestIds.filter(nid => nests.some(n=>n.id===nid)).length, 0);
+    const accDone  = chars.reduce((s,c) => s + c.availableNestIds.filter(nid => nests.some(n=>n.id===nid) && getRec(c,nid)?.c).length, 0);
+    html += `<tr class="row-acc ${collapsed?'collapsed':''}" data-acc="${acc.id}">
+      <td colspan="${nests.length + 3}"><span class="arrow">▼</span>📁 ${esc(acc.name)}
+      <span class="mut">（${chars.length} 个角色 · 本周 ${accDone}/${accTotal}）</span></td></tr>`;
+    if (collapsed) return;
+    // 角色行
+    chars.forEach(c => {
+      const color = jobColor(c.jobId);
+      const hiddenCls = c.enable ? '' : ' char-hidden-row';
+      html += `<tr class="char-row${hiddenCls}" data-cid="${c.id}">
+        <td><span class="job-dot" style="background:${color}"></span>
+          <b style="color:${color}">${esc(c.name)}</b>
+          <span class="mut">Lv.${c.level} ${esc(jobName(c.jobId))}${c.enable?'':' [已归档]'}</span></td>`;
+      let done = 0, avail = 0;
+      nests.forEach(n => {
+        const can = c.availableNestIds.includes(n.id) && n.enable;
+        const rec = getRec(c, n.id);
+        if (c.availableNestIds.includes(n.id)) avail++;
+        if (can){
+          if (rec?.c) done++;
+          const t = rec?.t ? new Date(rec.t) : null;
+          const tStr = t ? `${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}` : '';
+          html += `<td class="cell-nest ${rec?.c ? 'cleared' : ''}" data-cid="${c.id}" data-nid="${n.id}" title="点击切换通关状态${tStr ? ' · ' + tStr : ''}">
+            <span class="mark">${rec?.c ? '✓' : '○'}</span>${tStr && rec?.c ? `<span class="rec-time">${tStr}</span>` : ''}</td>`;
+        } else {
+          const reason = !n.enable ? '巢穴已停用' : '该角色不可通关此巢穴';
+          html += `<td class="cell-nest disabled" title="${reason}"><span class="mark">—</span></td>`;
+        }
+      });
+      html += `<td class="num"><b style="color:${done===avail&&avail>0?'var(--success)':'var(--text)'}">${done}/${avail}</b></td>
+        <td class="num"><button class="btn xs" data-batch="${c.id}">批量</button></td></tr>`;
+    });
+  });
+  html += '</tbody></table></div>';
+  wrap.innerHTML = anyRow ? html : `<div class="empty"><div class="icon">🔍</div>没有符合条件的角色</div>`;
+
+  // 绑定事件
+  wrap.querySelectorAll('.row-acc').forEach(tr => tr.addEventListener('click', () => {
+    const id = tr.dataset.acc; collapsedAcc[id] = !collapsedAcc[id]; renderOverview();
+  }));
+  wrap.querySelectorAll('.cell-nest:not(.disabled)').forEach(td => td.addEventListener('click', () => {
+    toggleCell(td.dataset.cid, td.dataset.nid);
+  }));
+  wrap.querySelectorAll('[data-batch]').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation(); openBatchModal(btn.dataset.batch);
+  }));
+}
+// 切换单元格通关状态
+function toggleCell(cid, nid){
+  const found = charById(cid); if (!found) return;
+  const c = found.char;
+  const rec = getRec(c, nid);
+  if (rec?.c) setRec(c, nid, null);                       // 取消通关 → 删除记录
+  else setRec(c, nid, { c: true, t: new Date().toISOString() }); // 标记通关并记录时间
+  markDirty(); renderOverview();
+}
+// 批量勾选弹窗：同一角色多个巢穴
+function openBatchModal(cid){
+  const found = charById(cid); if (!found) return;
+  const c = found.char;
+  const nests = S.nestList.filter(n => n.enable && c.availableNestIds.includes(n.id));
+  if (nests.length === 0){ toast('该角色没有可通关的启用巢穴'); return; }
+  const body = nests.map(n => {
+    const checked = getRec(c, n.id)?.c ? 'checked' : '';
+    return `<label><input type="checkbox" data-bnid="${n.id}" ${checked}> ${esc(n.name)}</label>`;
+  }).join('');
+  openModal(`批量设置通关 - ${esc(c.name)}`, `<div class="checkbox-grid" style="max-height:300px">${body}</div>`, [
+    { text: '取消', cls: '', fn: closeModal },
+    { text: '确定', cls: 'primary', fn: () => {
+      $$('#modalBody [data-bnid]').forEach(cb => {
+        const nid = cb.dataset.bnid;
+        if (cb.checked) { if (!getRec(c, nid)?.c) setRec(c, nid, { c: true, t: new Date().toISOString() }); }
+        else setRec(c, nid, null);
+      });
+      markDirty(); closeModal(); renderOverview();
+    }}
+  ]);
+}
+
+/* =====================================================================
+ * 管理页渲染
+ * ===================================================================== */
+let curMTab = 'account';
+$$('.manage-tabs button').forEach(b => b.addEventListener('click', () => {
+  curMTab = b.dataset.mtab;
+  $$('.manage-tabs button').forEach(x => x.classList.toggle('active', x === b));
+  ['account','char','nest','job'].forEach(t => $('#mtab-' + t).style.display = t === curMTab ? '' : 'none');
+  renderManage();
+}));
+
+function renderManage(){
+  if (curMTab === 'account') renderAccList();
+  else if (curMTab === 'char') renderCharList();
+  else if (curMTab === 'nest') renderNestList();
+  else renderJobList();
+}
+
+/* ---- 账号管理 ---- */
+function renderAccList(){
+  const el = $('#mtab-account');
+  let html = `<div class="toolbar"><button class="btn primary sm" onclick="openAccModal()">＋ 新增账号</button></div>`;
+  if (S.accountList.length === 0) html += `<div class="empty"><div class="icon">📁</div>暂无账号</div>`;
+  S.accountList.forEach(a => {
+    const cnt = (a.charList || []).length;
+    html += `<div class="list-item"><div class="info"><span class="name">📁 ${esc(a.name)}</span>
+      <span class="meta">${cnt} 个角色</span></div>
+      <div class="actions">
+        <button class="btn xs" onclick="openAccModal('${a.id}')">编辑</button>
+        <button class="btn xs danger" onclick="delAccount('${a.id}')">删除</button>
+      </div></div>`;
+  });
+  el.innerHTML = html;
+}
+function openAccModal(id){
+  const a = id ? accById(id) : null;
+  openModal(a ? '编辑账号' : '新增账号',
+    `<div class="form-row"><label>账号名称</label><input id="f_accName" value="${esc(a?.name || '')}" placeholder="请输入账号名称"></div>`,
+    [{ text:'取消', fn: closeModal },
+     { text:'保存', cls:'primary', fn: () => {
+       const name = $('#f_accName').value.trim();
+       if (!name) { toast('请输入账号名称'); return; }
+       if (a) a.name = name;
+       else S.accountList.push({ id: uid('acc'), name, charList: [] });
+       markDirty(); closeModal(); renderManage();
+     }}]);
+}
+function delAccount(id){
+  const a = accById(id); if (!a) return;
+  if (!confirm(`确定删除账号「${a.name}」吗？\n\n该账号下 ${(a.charList||[]).length} 个角色及其所有通关记录将一并删除，此操作不可恢复！`)) return;
+  S.accountList = S.accountList.filter(x => x.id !== id);
+  markDirty(); renderManage(); toast('账号已删除');
+}
+
+/* ---- 角色管理 ---- */
+function renderCharList(){
+  const el = $('#mtab-char');
+  let html = `<div class="toolbar">
+    <button class="btn primary sm" onclick="openCharModal()" ${S.accountList.length?'':'disabled'}>＋ 新增角色</button>
+    ${S.accountList.length?'':'<span class="mut">请先创建账号</span>'}
+    <select id="charFilterAcc" onchange="renderCharList()"><option value="">全部账号</option>
+      ${S.accountList.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
+    <label class="flex mut"><input type="checkbox" id="charShowArchived" onchange="renderCharList()"> 显示已归档</label>
+  </div>`;
+  const facc = $('#charFilterAcc')?.value || '';
+  const showA = $('#charShowArchived')?.checked || false;
+  let any = false;
+  S.accountList.forEach(a => {
+    if (facc && a.id !== facc) return;
+    (a.charList || []).forEach(c => {
+      if (!showA && !c.enable) return;
+      any = true;
+      const color = jobColor(c.jobId);
+      const nestNames = c.availableNestIds.map(nid => nestById(nid)?.name).filter(Boolean).join('、') || '无';
+      html += `<div class="list-item ${c.enable?'':'hidden-item'}"><div class="info">
+        <span class="job-dot" style="background:${color}"></span>
+        <span class="name" style="color:${color}">${esc(c.name)}</span>
+        <span class="tag">Lv.${c.level}</span>
+        <span class="tag">${esc(jobName(c.jobId))}</span>
+        <span class="tag">📁 ${esc(a.name)}</span>
+        <span class="meta">可通关：${esc(nestNames)}</span>
+        ${c.enable?'':'<span class="tag" style="color:var(--warn)">已归档</span>'}
+      </div><div class="actions">
+        <button class="btn xs" onclick="toggleArchiveChar('${c.id}')">${c.enable?'归档':'恢复'}</button>
+        <button class="btn xs" onclick="openCharModal('${c.id}')">编辑</button>
+        <button class="btn xs danger" onclick="delChar('${c.id}')">删除</button>
+      </div></div>`;
+    });
+  });
+  if (!any) html += `<div class="empty"><div class="icon">🧝</div>暂无角色</div>`;
+  el.innerHTML = html;
+  // 还原筛选状态
+  const sel2 = $('#charFilterAcc'); if (sel2 && facc) sel2.value = facc;
+  const cb2 = $('#charShowArchived'); if (cb2) cb2.checked = showA;
+}
+function openCharModal(cid){
+  const found = cid ? charById(cid) : null;
+  const c = found?.char;
+  const enabledNests = S.nestList.filter(n => n.enable);
+  const nestBoxes = enabledNests.length
+    ? enabledNests.map(n => `<label><input type="checkbox" data-nest="${n.id}" ${c?.availableNestIds.includes(n.id) ? 'checked' : ''}> ${esc(n.name)}</label>`).join('')
+    : '<span class="mut">暂无启用巢穴，请先在巢穴管理中添加</span>';
+  openModal(c ? '编辑角色' : '新增角色', `
+    <div class="form-row"><label>所属账号</label>
+      <select id="f_charAcc" ${c ? 'disabled' : ''}>${S.accountList.map(a => `<option value="${a.id}" ${found?.acc.id===a.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select>
+    </div>
+    <div class="form-row"><label>角色名称</label><input id="f_charName" value="${esc(c?.name || '')}" placeholder="请输入角色名称"></div>
+    <div class="form-row"><label>等级</label><input id="f_charLevel" type="number" min="1" max="999" value="${c?.level ?? 99}"></div>
+    <div class="form-row"><label>职业</label>
+      <select id="f_charJob">${S.jobList.map(j => `<option value="${j.id}" ${c?.jobId===j.id?'selected':''}>${esc(j.name)}</option>`).join('')}</select>
+    </div>
+    <div class="form-row"><label>可通关巢穴（勾选后该角色才可记录对应巢穴）</label>
+      <div class="checkbox-grid">${nestBoxes}</div>
+    </div>`,
+    [{ text:'取消', fn: closeModal },
+     { text:'保存', cls:'primary', fn: () => {
+       const name = $('#f_charName').value.trim();
+       const level = parseInt($('#f_charLevel').value) || 1;
+       const jobId = $('#f_charJob').value;
+       const nestIds = $$('#modalBody [data-nest]:checked').map(x => x.dataset.nest);
+       if (!name) { toast('请输入角色名称'); return; }
+       if (!jobId) { toast('请先在职业配置中添加职业'); return; }
+       if (c) {
+         c.name = name; c.level = level; c.jobId = jobId; c.availableNestIds = nestIds;
+       } else {
+         const acc = accById($('#f_charAcc').value);
+         if (!acc) { toast('请选择账号'); return; }
+         acc.charList = acc.charList || [];
+         acc.charList.push({ id: uid('c'), name, level, jobId, enable: true, availableNestIds: nestIds, weeklyRecord: {} });
+       }
+       markDirty(); closeModal(); renderManage();
+     }}]);
+}
+function toggleArchiveChar(cid){
+  const found = charById(cid); if (!found) return;
+  found.char.enable = !found.char.enable;
+  markDirty(); renderManage();
+  toast(found.char.enable ? '角色已恢复' : '角色已归档（数据保留，仅隐藏展示）');
+}
+function delChar(cid){
+  const found = charById(cid); if (!found) return;
+  if (!confirm(`确定删除角色「${found.char.name}」吗？\n\n该角色的所有通关记录将一并删除，此操作不可恢复！`)) return;
+  found.acc.charList = found.acc.charList.filter(x => x.id !== cid);
+  markDirty(); renderManage(); toast('角色已删除');
+}
+
+/* ---- 巢穴管理 ---- */
+function renderNestList(){
+  const el = $('#mtab-nest');
+  let html = `<div class="toolbar"><button class="btn primary sm" onclick="openNestModal()">＋ 新增巢穴</button></div>`;
+  if (S.nestList.length === 0) html += `<div class="empty"><div class="icon">🕳️</div>暂无巢穴</div>`;
+  S.nestList.forEach(n => {
+    // 统计可通关该巢穴的角色数
+    let cnt = 0;
+    S.accountList.forEach(a => (a.charList||[]).forEach(c => { if (c.availableNestIds.includes(n.id)) cnt++; }));
+    html += `<div class="list-item ${n.enable?'':'hidden-item'}"><div class="info">
+      <span class="name">🕳️ ${esc(n.name)}</span>
+      <span class="meta">${cnt} 个角色可通关</span>
+      ${n.enable?'':'<span class="tag" style="color:var(--warn)">已停用</span>'}
+    </div><div class="actions">
+      <div class="switch ${n.enable?'on':''}" title="启用/停用" onclick="toggleNest('${n.id}')"></div>
+      <button class="btn xs" onclick="openNestModal('${n.id}')">编辑</button>
+      <button class="btn xs danger" onclick="delNest('${n.id}')">删除</button>
+    </div></div>`;
+  });
+  el.innerHTML = html;
+}
+function openNestModal(id){
+  const n = id ? nestById(id) : null;
+  openModal(n ? '编辑巢穴' : '新增巢穴',
+    `<div class="form-row"><label>巢穴名称</label><input id="f_nestName" value="${esc(n?.name || '')}" placeholder="如：红龙巢穴"></div>`,
+    [{ text:'取消', fn: closeModal },
+     { text:'保存', cls:'primary', fn: () => {
+       const name = $('#f_nestName').value.trim();
+       if (!name) { toast('请输入巢穴名称'); return; }
+       if (n) n.name = name;
+       else S.nestList.push({ id: uid('n'), name, enable: true });
+       markDirty(); closeModal(); renderManage();
+     }}]);
+}
+function toggleNest(id){
+  const n = nestById(id); if (!n) return;
+  n.enable = !n.enable;
+  markDirty(); renderManage();
+  toast(n.enable ? '巢穴已启用' : '巢穴已停用（配置保留，总览中默认隐藏）');
+}
+function delNest(id){
+  const n = nestById(id); if (!n) return;
+  if (!confirm(`确定删除巢穴「${n.name}」吗？\n\n⚠️ 删除后将清除所有角色对该巢穴的可通关配置及全部历史通关记录，此操作不可恢复！`)) return;
+  S.nestList = S.nestList.filter(x => x.id !== id);
+  S.accountList.forEach(a => (a.charList||[]).forEach(c => {
+    c.availableNestIds = c.availableNestIds.filter(x => x !== id);
+    Object.keys(c.weeklyRecord).forEach(w => { delete c.weeklyRecord[w][id]; });
+  }));
+  markDirty(); renderManage(); toast('巢穴已删除，相关记录已清除');
+}
+
+/* ---- 职业配置 ---- */
+function renderJobList(){
+  const el = $('#mtab-job');
+  let html = `<div class="toolbar"><button class="btn primary sm" onclick="openJobModal()">＋ 新增职业</button>
+    <span class="mut">职业颜色将用于角色名称的显示颜色</span></div>`;
+  if (S.jobList.length === 0) html += `<div class="empty"><div class="icon">🎨</div>暂无职业</div>`;
+  S.jobList.forEach(j => {
+    let cnt = 0;
+    S.accountList.forEach(a => (a.charList||[]).forEach(c => { if (c.jobId === j.id) cnt++; }));
+    html += `<div class="list-item"><div class="info">
+      <span class="job-dot" style="background:${j.color};width:16px;height:16px"></span>
+      <span class="name" style="color:${j.color}">${esc(j.name)}</span>
+      <span class="tag">${j.color}</span>
+      <span class="meta">${cnt} 个角色</span>
+    </div><div class="actions">
+      <button class="btn xs" onclick="openJobModal('${j.id}')">编辑</button>
+      <button class="btn xs danger" onclick="delJob('${j.id}')">删除</button>
+    </div></div>`;
+  });
+  el.innerHTML = html;
+}
+function openJobModal(id){
+  const j = id ? jobById(id) : null;
+  openModal(j ? '编辑职业' : '新增职业', `
+    <div class="form-row"><label>职业名称</label><input id="f_jobName" value="${esc(j?.name || '')}" placeholder="如：狂战士"></div>
+    <div class="form-row"><label>显示颜色</label><input id="f_jobColor" type="color" value="${j?.color || '#3b82f6'}"></div>`,
+    [{ text:'取消', fn: closeModal },
+     { text:'保存', cls:'primary', fn: () => {
+       const name = $('#f_jobName').value.trim();
+       const color = $('#f_jobColor').value;
+       if (!name) { toast('请输入职业名称'); return; }
+       if (j) { j.name = name; j.color = color; }
+       else S.jobList.push({ id: uid('j'), name, color });
+       markDirty(); closeModal(); renderManage();
+     }}]);
+}
+function delJob(id){
+  const j = jobById(id); if (!j) return;
+  let cnt = 0;
+  S.accountList.forEach(a => (a.charList||[]).forEach(c => { if (c.jobId === id) cnt++; }));
+  if (cnt > 0) { toast(`无法删除：仍有 ${cnt} 个角色使用该职业`); return; }
+  if (!confirm(`确定删除职业「${j.name}」吗？`)) return;
+  S.jobList = S.jobList.filter(x => x.id !== id);
+  markDirty(); renderManage(); toast('职业已删除');
+}
+
+/* =====================================================================
+ * 统计页渲染
+ * ===================================================================== */
+function allWeekIds(){
+  const set = new Set([S.config.currentWeekId]);
+  S.accountList.forEach(a => (a.charList||[]).forEach(c => Object.keys(c.weeklyRecord).forEach(w => set.add(w))));
+  return Array.from(set).sort().reverse(); // 新周在前
+}
+function renderStats(){
+  const weekSel = $('#statsWeek');
+  const weeks = allWeekIds();
+  const curVal = weekSel.value || S.config.currentWeekId;
+  weekSel.innerHTML = weeks.map(w => `<option value="${w}">${w}${w===S.config.currentWeekId?'（本周）':''}</option>`).join('');
+  weekSel.value = weeks.includes(curVal) ? curVal : S.config.currentWeekId;
+  const week = weekSel.value;
+  const dim = $('#statsDim').value;
+  const body = $('#statsBody');
+  const enabledNests = S.nestList.filter(n => n.enable);
+
+  if (dim === 'account'){
+    // 按账号统计：每个账号本周完成数/可完成数
+    let html = '<div class="stats-grid">';
+    S.accountList.forEach(a => {
+      let total = 0, done = 0;
+      (a.charList||[]).forEach(c => {
+        if (!c.enable) return;
+        c.availableNestIds.forEach(nid => {
+          if (!enabledNests.some(n => n.id === nid)) return;
+          total++;
+          if (c.weeklyRecord[week]?.[nid]?.c) done++;
+        });
+      });
+      const pct = total ? Math.round(done / total * 100) : 0;
+      html += `<div class="stat-card"><div class="title">📁 ${esc(a.name)}</div>
+        <div class="progress-ring"><div class="ring" style="--p:${pct}"><span>${pct}%</span></div>
+        <div><div style="font-size:22px;font-weight:700">${done}<span class="mut">/${total}</span></div>
+        <div class="mut">${(a.charList||[]).filter(c=>c.enable).length} 个角色</div></div></div></div>`;
+    });
+    body.innerHTML = S.accountList.length ? html + '</div>' : '<div class="empty"><div class="icon">📈</div>暂无账号数据</div>';
+  }
+  else if (dim === 'char'){
+    // 按角色统计：表格展示
+    let html = `<div class="tbl-wrap"><table><thead><tr><th>账号</th><th>角色</th><th>职业</th>${enabledNests.map(n=>`<th class="num">${esc(n.name)}</th>`).join('')}<th class="num">完成率</th></tr></thead><tbody>`;
+    let any = false;
+    S.accountList.forEach(a => (a.charList||[]).forEach(c => {
+      if (!c.enable) return; any = true;
+      let total = 0, done = 0;
+      html += `<tr><td>${esc(a.name)}</td>
+        <td><span class="job-dot" style="background:${jobColor(c.jobId)}"></span><b style="color:${jobColor(c.jobId)}">${esc(c.name)}</b></td>
+        <td>${esc(jobName(c.jobId))}</td>`;
+      enabledNests.forEach(n => {
+        if (c.availableNestIds.includes(n.id)){
+          total++;
+          const ok = c.weeklyRecord[week]?.[n.id]?.c;
+          if (ok) done++;
+          html += `<td class="num" style="color:${ok?'var(--success)':'var(--text-3)'}">${ok?'✓':'○'}</td>`;
+        } else html += `<td class="num" style="opacity:.3">—</td>`;
+      });
+      const pct = total ? Math.round(done/total*100) : 0;
+      html += `<td class="num"><b style="color:${pct===100?'var(--success)':'var(--text)'}">${done}/${total} (${pct}%)</b></td></tr>`;
+    }));
+    html += '</tbody></table></div>';
+    body.innerHTML = any ? html : '<div class="empty"><div class="icon">📈</div>暂无角色数据</div>';
+  }
+  else {
+    // 按巢穴统计：每个巢穴已通关/可通关角色数 + 角色明细条
+    let html = '<div class="stats-grid">';
+    enabledNests.forEach(n => {
+      let total = 0, done = 0; const rows = [];
+      S.accountList.forEach(a => (a.charList||[]).forEach(c => {
+        if (!c.enable || !c.availableNestIds.includes(n.id)) return;
+        total++;
+        const ok = c.weeklyRecord[week]?.[n.id]?.c;
+        if (ok) done++;
+        rows.push({ name: c.name, color: jobColor(c.jobId), ok });
+      }));
+      const pct = total ? Math.round(done/total*100) : 0;
+      html += `<div class="stat-card"><div class="title">🕳️ ${esc(n.name)}<span class="right mut">${done}/${total} (${pct}%)</span></div>
+        <div class="bar-row"><div class="bar" style="flex:1"><i style="width:${pct}%"></i></div></div>
+        ${rows.map(r => `<div class="bar-row"><span class="job-dot" style="background:${r.color}"></span>
+          <span class="lbl" style="color:${r.color}">${esc(r.name)}</span>
+          <span class="val" style="color:${r.ok?'var(--success)':'var(--text-3)'}">${r.ok?'✓ 已通':'○ 未通'}</span></div>`).join('')}
+      </div>`;
+    });
+    body.innerHTML = enabledNests.length ? html + '</div>' : '<div class="empty"><div class="icon">📈</div>暂无巢穴数据</div>';
+  }
+}
+$('#statsWeek').addEventListener('change', renderStats);
+$('#statsDim').addEventListener('change', renderStats);
+
+/* =====================================================================
+ * 数据页
+ * ===================================================================== */
+function renderDataPreview(){
+  if (!S) return;
+  const chars = S.accountList.reduce((s,a)=>s+(a.charList||[]).length,0);
+  $('#dataPreview').innerHTML =
+    `账号 <b>${S.accountList.length}</b> 个 · 角色 <b>${chars}</b> 个 · 巢穴 <b>${S.nestList.length}</b> 个 · 职业 <b>${S.jobList.length}</b> 个<br>` +
+    `当前周 ID：<b>${S.config.currentWeekId}</b> · 重置时间：每周${'日一二三四五六'[S.config.resetWeekday]} ${S.config.resetHour}:00 · ` +
+    `历史周数：<b>${allWeekIds().length}</b>`;
+  $('#cfgResetWeekday').value = S.config.resetWeekday;
+  $('#cfgResetHour').value = S.config.resetHour;
+}
+function saveResetCfg(){
+  S.config.resetWeekday = parseInt($('#cfgResetWeekday').value);
+  S.config.resetHour = Math.min(23, Math.max(0, parseInt($('#cfgResetHour').value) || 9));
+  S.config.currentWeekId = computeCurrentWeekId();
+  markDirty(); renderAll(); toast('重置设置已保存');
+}
+
+/* =====================================================================
+ * 模态框
+ * ===================================================================== */
+function openModal(title, bodyHtml, buttons){
+  $('#modalTitle').innerHTML = title;
+  $('#modalBody').innerHTML = bodyHtml;
+  const foot = $('#modalFoot'); foot.innerHTML = '';
+  buttons.forEach(b => {
+    const btn = document.createElement('button');
+    btn.className = 'btn ' + (b.cls || ''); btn.textContent = b.text;
+    btn.addEventListener('click', b.fn); foot.appendChild(btn);
+  });
+  $('#modalMask').classList.add('show');
+}
+function closeModal(){ $('#modalMask').classList.remove('show'); }
+$('#modalMask').addEventListener('click', e => { if (e.target.id === 'modalMask') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+/* =====================================================================
+ * 主题 / 导航 / 倒计时
+ * ===================================================================== */
+$('#btnTheme').addEventListener('click', () => {
+  document.documentElement.classList.toggle('dark');
+  $('#btnTheme').textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+});
+$$('nav.tabs button').forEach(b => b.addEventListener('click', () => {
+  $$('nav.tabs button').forEach(x => x.classList.toggle('active', x === b));
+  $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + b.dataset.page));
+  if (b.dataset.page === 'stats') renderStats();
+  if (b.dataset.page === 'data') renderDataPreview();
+}));
+['searchChar','showArchived','showDisabledNest'].forEach(id => $('#'+id).addEventListener('input', renderOverview));
+$('#filterAccount').addEventListener('change', renderOverview);
+$('#btnExpandAll').addEventListener('click', () => { collapsedAcc = {}; renderOverview(); });
+
+// 倒计时 & 自动重置检查 & 时间异常检测（每秒）
+function tick(){
+  const now = new Date();
+  // 系统时间回退检测（回退超过1小时提示）
+  const nowMs = now.getTime();
+  if (nowMs < lastKnownTime - 3600000) $('#timeWarnBanner').style.display = 'flex';
+  lastKnownTime = nowMs;
+  if (!S) return;
+  // 自动重置判断
+  const cur = computeCurrentWeekId(now);
+  if (S.config.currentWeekId && cur !== S.config.currentWeekId) doReset(false);
+  // 倒计时显示
+  $('#weekBadge').textContent = S.config.currentWeekId;
+  $('#countdown').innerHTML = `距重置 <b>${fmtCountdown(nextResetTime(now) - now)}</b>`;
+}
+
+/* ---------------- 渲染入口 ---------------- */
+function renderAll(){
+  renderOverview();
+  renderManage();
+  renderStats();
+  renderDataPreview();
+  tick();
+}
+
+/* ---------------- 启动 ---------------- */
+S = blankState();
+S.config.currentWeekId = computeCurrentWeekId();
+renderAll();
+countdownTimer = setInterval(tick, 1000);
+window.addEventListener('beforeunload', e => {
+  if (dirty) { e.preventDefault(); e.returnValue = '数据尚未保存，确定离开吗？'; }
+});
+</script>
+</body>
+</html>

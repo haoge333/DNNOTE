@@ -1,0 +1,2581 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>龙之谷小助手</title>
+<!-- 内联 favicon，避免 WebView 请求 favicon.ico 产生 404 警告 -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🐉%3C/text%3E%3C/svg%3E">
+<style>
+/* ========== 基础变量与主题 ========== */
+:root{
+  --bg:#f1f5f9; --bg-card:#ffffff; --bg-hover:#f8fafc; --bg-active:#eff6ff;
+  --border:#e2e8f0; --grid-line:#d3dce8; --text:#0f172a; --text-2:#64748b; --text-3:#94a3b8;
+  --primary:#2563eb; --primary-d:#1d4ed8; --success:#16a34a; --danger:#dc2626;
+  --warn:#d97706; --shadow:0 1px 3px rgba(0,0,0,.08);
+  --radius:8px;
+}
+html.dark{
+  --bg:#0b1220; --bg-card:#131c2e; --bg-hover:#1a2438; --bg-active:#1e3a5f;
+  --border:#24314a; --grid-line:#33455f; --text:#e2e8f0; --text-2:#94a3b8; --text-3:#64748b;
+  --primary:#3b82f6; --primary-d:#2563eb; --success:#22c55e; --danger:#ef4444;
+  --warn:#f59e0b; --shadow:0 1px 3px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;transition:background .2s,color .2s}
+/* 全局背景图：低透明度不干扰阅读，暗黑模式下加深遮罩 */
+body::before{content:'';position:fixed;inset:0;background:url('assets/bg.jpg') center/cover no-repeat;opacity:.08;z-index:-1;pointer-events:none}
+html.dark body::before{opacity:.06}
+html.dark body{background:rgba(11,18,32,.92)}
+/* 左下角自动保存指示器：显示后自动淡出 */
+#saveIndicator{position:fixed;left:16px;bottom:16px;background:var(--text);color:var(--bg);padding:6px 14px;border-radius:16px;font-size:12px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+#saveIndicator.show{opacity:.92}
+#saveIndicator.err{background:var(--danger);color:#fff}
+/* 统计维度切换按钮组 */
+.stats-dim-tabs{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.stats-dim-tabs button{padding:6px 14px;font-size:13px;color:var(--text-2);background:var(--bg-card);transition:all .15s}
+.stats-dim-tabs button.active{background:var(--primary);color:#fff;font-weight:600}
+.stats-dim-tabs button:not(.active):hover{background:var(--bg-hover)}
+/* 角色悬赏行：小字体展示本周悬赏副本，已完成绿色基底、未完成白色基底 */
+.bounty-line{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:3px;cursor:pointer;font-size:11px}
+.bounty-line:hover .bounty-add{color:var(--primary)}
+.bounty-tag{padding:0 6px;border-radius:8px;border:1px solid var(--text-3);background:var(--bg-card);color:var(--text);line-height:1.6;white-space:nowrap}
+.bounty-tag.done{background:var(--success);border-color:var(--success);color:#fff}
+.bounty-tag.cnt{background:var(--bg-hover);color:var(--text-2)}
+.bounty-tag.cnt.done{background:var(--success);border-color:var(--success);color:#fff}
+/* 悬赏标记：同工会 / 限时 */
+.bt-flag{font-style:normal;font-size:10px;margin-left:4px;padding:0 4px;border-radius:4px;background:rgba(0,0,0,.08);color:var(--text-2)}
+.bounty-tag.done .bt-flag{background:rgba(255,255,255,.25);color:#fff}
+/* 悬赏等级徽标 L/S/A/B/C */
+.bt-grade{font-style:normal;font-weight:700;font-size:10px;margin-right:4px;padding:0 4px;border-radius:4px;line-height:1.5;letter-spacing:.5px}
+.lv-L{background:#fecaca;color:#991b1b}
+.lv-S{background:#e9d5ff;color:#6b21a8}
+.lv-A{background:#fed7aa;color:#9a3412}
+.lv-B{background:#bfdbfe;color:#1e40af}
+.lv-C{background:#bbf7d0;color:#166534}
+html.dark .lv-L{background:#450a0a;color:#fca5a5}
+html.dark .lv-S{background:#3b0764;color:#d8b4fe}
+html.dark .lv-A{background:#431407;color:#fdba74}
+html.dark .lv-B{background:#172554;color:#93c5fd}
+html.dark .lv-C{background:#052e16;color:#86efac}
+.bounty-row select.lv-sel{width:66px;padding:2px 4px;font-size:12px;font-weight:700;border-radius:6px}
+.bounty-add{color:var(--text-3);font-size:11px}
+/* 悬赏弹窗副本行 */
+.bounty-row{display:flex;align-items:center;gap:10px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px}
+.bounty-row label{flex:1;display:flex;align-items:center;gap:6px;cursor:pointer}
+.bounty-row label.opt{flex:0 0 auto;font-size:12px;color:var(--text-2)}
+/* 打赏页 */
+.donate-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,300px));gap:20px;justify-content:center;margin-top:16px}
+.donate-card{border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;background:var(--bg-card)}
+.donate-card img{width:100%;border-radius:8px;display:block}
+.donate-card .platform{margin-top:10px;font-weight:600;font-size:14px}
+.donate-text{text-align:center;line-height:2;color:var(--text-2);font-size:14px}
+.donate-text .big{font-size:17px;color:var(--text);font-weight:600}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;font-size:inherit}
+input,select{font-family:inherit;font-size:inherit;color:var(--text);background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:6px 10px;outline:none;transition:border-color .15s}
+input:focus,select:focus{border-color:var(--primary)}
+h1,h2,h3{font-weight:600}
+
+/* ========== 顶部栏 ========== */
+header{background:var(--bg-card);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;gap:16px;height:56px;position:sticky;top:0;z-index:50;box-shadow:var(--shadow)}
+header .logo{font-size:18px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:8px}
+header .spacer{flex:1}
+.week-badge{background:var(--bg-active);border:1px solid var(--primary);color:var(--primary);padding:4px 12px;border-radius:20px;font-weight:600;font-size:13px}
+.countdown{font-variant-numeric:tabular-nums;color:var(--text-2);font-size:13px}
+.countdown b{color:var(--warn);font-size:15px}
+
+/* ========== 导航标签 ========== */
+nav.tabs{background:var(--bg-card);border-bottom:1px solid var(--border);padding:0 20px;display:flex;gap:4px;position:sticky;top:56px;z-index:49}
+nav.tabs button{padding:12px 18px;font-size:14px;color:var(--text-2);border-bottom:2px solid transparent;transition:all .15s}
+nav.tabs button:hover{color:var(--text)}
+nav.tabs button.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+
+/* ========== 主内容区 ========== */
+main{width:100%;margin:0 auto;padding:12px 14px}
+.page{display:none}
+.page.active{display:block}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card h2{font-size:16px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.card h2 .spacer{flex:1}
+
+/* ========== 按钮 ========== */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;transition:all .15s;border:1px solid var(--border);background:var(--bg-card);color:var(--text)}
+.btn:hover{background:var(--bg-hover);border-color:var(--text-3)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-d);border-color:var(--primary-d)}
+.btn.success{background:var(--success);border-color:var(--success);color:#fff}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn.warn{background:var(--warn);border-color:var(--warn);color:#fff}
+.btn.sm{padding:4px 10px;font-size:12px}
+.btn.xs{padding:2px 8px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* ========== 表格 ========== */
+.tbl-wrap{overflow:auto;max-height:calc(100vh - 240px);border:1px solid var(--border);border-radius:var(--radius)}
+table{width:100%;border-collapse:collapse;background:var(--bg-card)}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);border-right:1px solid var(--grid-line);white-space:nowrap}
+th{background:var(--bg-hover);font-weight:600;color:var(--text-2);font-size:12px;position:sticky;top:0;z-index:2;border-right-color:var(--border)}
+tr:last-child td{border-bottom:none}
+th:last-child,td:last-child{border-right:none}
+tbody tr:hover{background:var(--bg-hover)}
+td.num,th.num{text-align:center}
+/* 固定信息列与副本列之间的加粗分隔线，强化列组边界 */
+th.col-sep,td.col-sep{border-right:2px solid var(--border)}
+/* 冻结首列：横向滚动时「账号 / 角色」列保持可见 */
+td.col-fix{position:sticky;left:0;z-index:1;background:var(--bg-card)}
+th.col-fix{position:sticky;left:0;z-index:3;background:var(--bg-hover)}
+tbody tr:hover td.col-fix{background:var(--bg-hover)}
+
+/* 总览表格单元格 */
+.cell-nest{width:64px;min-width:64px;height:48px;text-align:center;cursor:pointer;user-select:none;position:relative;transition:background .1s}
+.cell-nest:hover{background:var(--bg-active)}
+.cell-nest.cleared{background:#f0fdf4}
+html.dark .cell-nest.cleared{background:#052e16}
+.cell-nest.disabled{cursor:not-allowed;opacity:.45}
+.cell-nest.ro,.bounty-line.ro{cursor:not-allowed}
+.cell-nest.ro:hover .cell-check{border-color:var(--text-3);box-shadow:none;transform:none}
+.cell-nest.ro.cleared:hover .cell-check{box-shadow:none}
+.cell-nest .rec-time{display:block;font-size:10px;color:var(--text-3);margin-top:2px;transform:scale(.9)}
+/* 通关复选框：未通=空心方框，已通=绿色实心打勾，悬停高亮放大 */
+.cell-check{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;border:2px solid var(--text-3);background:var(--bg-card);color:transparent;font-size:15px;font-weight:700;transition:all .15s;vertical-align:middle}
+.cell-nest:hover .cell-check{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.18);transform:scale(1.12)}
+.cell-nest.cleared .cell-check{background:var(--success);border-color:var(--success);color:#fff}
+.cell-nest.cleared:hover .cell-check{box-shadow:0 0 0 3px rgba(22,163,74,.22)}
+.cell-nest.disabled .cell-check{border-style:dashed;color:var(--text-3);font-size:12px}
+/* 统计页通关标志：与总览页保持一致的方框/打勾样式 */
+.stat-check{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;border:2px solid var(--text-3);background:var(--bg-card);color:transparent;font-size:13px;font-weight:700;vertical-align:middle}
+.stat-check.ok{background:var(--success);border-color:var(--success);color:#fff}
+/* 副本表头标签 */
+.nest-tags{display:flex;gap:3px;justify-content:center;margin-top:2px}
+.nest-tags .tag{font-size:9px;padding:0 4px;border-radius:6px;line-height:1.5}
+.tag-pri{background:#fee2e2;color:#b91c1c;border-color:#fecaca}
+html.dark .tag-pri{background:#450a0a;color:#fca5a5;border-color:#7f1d1d}
+.tag-mid{background:#fef3c7;color:#b45309;border-color:#fde68a}
+html.dark .tag-mid{background:#451a03;color:#fcd34d;border-color:#78350f}
+/* 二转职业标签 */
+.subjob-tag{font-size:11px;color:var(--text-2);background:var(--bg-hover);border:1px solid var(--border);border-radius:8px;padding:1px 7px}
+.subjob-row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.subjob-row input{flex:1}
+.row-acc td{background:var(--bg-active);font-weight:600;cursor:pointer;position:sticky;left:0;z-index:1}
+.row-acc td .arrow{display:inline-block;transition:transform .2s;margin-right:6px;color:var(--text-2)}
+.row-acc.collapsed td .arrow{transform:rotate(-90deg)}
+.char-hidden-row td{opacity:.5;font-style:italic}
+
+/* ========== 管理页布局 ========== */
+.manage-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px}
+.manage-tabs button{padding:10px 20px;font-size:14px;color:var(--text-2);border-bottom:2px solid transparent}
+.manage-tabs button.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+.list-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;background:var(--bg-card);transition:all .15s}
+.list-item:hover{border-color:var(--text-3)}
+.list-item .info{flex:1;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.list-item .name{font-weight:600;font-size:14px}
+.list-item .meta{color:var(--text-2);font-size:12px}
+.list-item .actions{display:flex;gap:6px}
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;background:var(--bg-hover);border:1px solid var(--border)}
+.job-dot{width:12px;height:12px;border-radius:50%;display:inline-block;flex-shrink:0}
+.switch{position:relative;width:36px;height:20px;background:var(--border);border-radius:10px;cursor:pointer;transition:background .2s;flex-shrink:0}
+.switch.on{background:var(--success)}
+.switch::after{content:'';position:absolute;width:16px;height:16px;background:#fff;border-radius:50%;top:2px;left:2px;transition:left .2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.switch.on::after{left:18px}
+
+/* ========== 模态框 ========== */
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(2px)}
+.modal-mask.show{display:flex}
+.modal{background:var(--bg-card);border-radius:12px;width:90%;max-width:480px;max-height:85vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.modal-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-head h3{font-size:15px}
+.modal-head .close{font-size:20px;color:var(--text-3);line-height:1;padding:4px}
+.modal-body{padding:20px}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+.form-row{margin-bottom:14px}
+.form-row label{display:block;margin-bottom:6px;font-size:13px;color:var(--text-2);font-weight:500}
+.form-row input,.form-row select{width:100%}
+.form-row input[type=color]{padding:2px;height:36px;cursor:pointer}
+.checkbox-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;max-height:220px;overflow-y:auto;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
+.checkbox-grid label{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:4px 6px;border-radius:4px;margin:0}
+.checkbox-grid label:hover{background:var(--bg-active)}
+.checkbox-grid input{width:auto;accent-color:var(--primary)}
+/* 复选框组的全选/全不选操作行 */
+.check-all{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+
+/* 副本拖动排序 */
+.list-item.drag-src{opacity:.4}
+.list-item.drag-over{outline:2px dashed var(--primary);outline-offset:-2px;background:var(--bg-active)}
+.drag-handle{cursor:grab;color:var(--text-3);font-size:16px;padding:0 4px;user-select:none}
+.drag-handle:active{cursor:grabbing}
+
+/* ========== 统计页 ========== */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;overflow:auto}
+.stat-card{border:1px solid var(--border);border-radius:var(--radius);padding:16px;background:var(--bg-card)}
+.stat-card .title{font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.stat-card .bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
+.stat-card .bar-row .lbl{width:90px;overflow:hidden;text-overflow:ellipsis;color:var(--text-2)}
+.stat-card .bar{flex:1;height:8px;background:var(--bg-hover);border-radius:4px;overflow:hidden}
+.stat-card .bar>i{display:block;height:100%;background:var(--primary);border-radius:4px;transition:width .3s}
+.stat-card .val{width:56px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text-2)}
+.progress-ring{display:flex;align-items:center;gap:14px}
+.ring{width:64px;height:64px;border-radius:50%;background:conic-gradient(var(--success) calc(var(--p)*1%),var(--bg-hover) 0);display:flex;align-items:center;justify-content:center;position:relative}
+.ring::before{content:'';width:48px;height:48px;background:var(--bg-card);border-radius:50%;position:absolute}
+.ring span{position:relative;font-weight:700;font-size:13px}
+.delta{font-weight:600}
+.delta.up{color:var(--success)}
+.delta.down{color:var(--danger)}
+.delta.same{color:var(--text-2)}
+
+/* ========== 提示条 ========== */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--text);color:var(--bg);padding:10px 20px;border-radius:8px;font-size:13px;z-index:200;transition:transform .25s;box-shadow:0 4px 12px rgba(0,0,0,.2);pointer-events:none;opacity:0}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.banner{padding:10px 16px;border-radius:var(--radius);margin-bottom:16px;font-size:13px;display:flex;align-items:center;gap:10px}
+.banner.warn{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+html.dark .banner.warn{background:#451a03;color:#fcd34d;border-color:#78350f}
+.banner.info{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}
+html.dark .banner.info{background:#172554;color:#93c5fd;border-color:#1e3a8a}
+.banner .close{margin-left:auto;color:inherit;opacity:.6}
+
+/* ========== 工具栏 ========== */
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.toolbar .spacer{flex:1}
+.search-box{position:relative}
+.search-box input{padding-left:30px;width:200px}
+.search-box::before{content:'🔍';position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:12px;opacity:.5}
+.empty{text-align:center;padding:40px 20px;color:var(--text-3)}
+.empty .icon{font-size:40px;margin-bottom:10px}
+
+/* 下拉选择周 */
+select.week-select{min-width:130px}
+.mut{color:var(--text-2);font-size:12px}
+.hr{height:1px;background:var(--border);margin:16px 0;border:none}
+.flex{display:flex;align-items:center;gap:10px}
+.grow{flex:1}
+.right{margin-left:auto}
+.hidden-item{opacity:.55}
+.nest-head{writing-mode:horizontal-tb;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+.nest-head .st{font-size:10px;color:var(--text-3);display:block;font-weight:400}
+.link{color:var(--primary);cursor:pointer;text-decoration:underline;font-size:12px}
+.kbd{background:var(--bg-hover);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:11px;font-family:monospace}
+
+/* ========== 分红页 ========== */
+.loot-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px;margin-bottom:12px}
+.loot-sum .cell{border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;background:var(--bg-hover)}
+.loot-sum .k{font-size:12px;color:var(--text-2)}
+.loot-sum .v{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+.loot-sum .v.pri{color:var(--primary)}
+.loot-sum .v.gold{color:var(--warn)}
+.loot-my{margin-bottom:12px}
+.loot-my .tbl-wrap{max-height:none!important;overflow:visible}
+.loot-my table{font-size:12px}
+.loot-tag{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;margin:2px 4px 2px 0;border-radius:10px;font-size:11px;border:1px solid var(--border);background:var(--bg-card);cursor:pointer;transition:all .15s}
+.loot-tag:hover{border-color:var(--text-3)}
+.loot-tag.paid{background:#dcfce7;border-color:#86efac;color:#15803d}
+html.dark .loot-tag.paid{background:#052e16;border-color:#166534;color:#86efac}
+.loot-tag .who{color:var(--text-3);font-size:10px}
+td.loot-participants{white-space:normal;min-width:220px;max-width:360px}
+td.loot-items{white-space:normal;min-width:180px}
+.loot-item-line{display:flex;align-items:baseline;gap:6px;line-height:1.7;font-size:12px}
+/* 列表中的售价/未售出：可点击修改 */
+.loot-price{cursor:pointer;border-bottom:1px dashed currentColor;transition:color .15s}
+.loot-price:hover{color:var(--primary);border-bottom-color:var(--primary)}
+.loot-section{border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:16px}
+.loot-section.items{background:var(--bg-hover)}
+.loot-section.members{background:var(--bg-card);border-left:3px solid var(--primary)}
+.loot-sec-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:600;padding-bottom:8px;margin-bottom:10px;border-bottom:1px solid var(--border)}
+.loot-sec-head .bar{width:3px;height:14px;border-radius:2px;background:var(--primary);flex:none}
+.loot-sec-head .sub{font-weight:400;font-size:12px;color:var(--text-3)}
+.loot-i-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 0;border-bottom:1px dashed var(--border)}
+.loot-i-row:last-child{border-bottom:none}
+.loot-i-row .i-name{flex:1;min-width:140px}
+.loot-i-row .i-seal{width:64px}
+.loot-i-row .i-price{width:110px}
+.loot-i-row .i-soldat{font-size:12px;color:var(--text-3);min-width:76px;font-variant-numeric:tabular-nums}
+.modal.wide{max-width:760px}
+.loot-p-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;margin-bottom:8px;background:var(--bg-card)}
+.loot-p-row .p-name{flex:1;min-width:120px}
+.loot-p-row .p-char{flex:1;min-width:180px;max-width:280px}
+.loot-p-row .p-amt{width:110px}
+.loot-p-row .p-role{font-size:12px;color:var(--text-2);min-width:52px}
+.loot-p-row .p-opt{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);white-space:nowrap}
+
+.loot-hint{font-size:12px;color:var(--text-2);line-height:1.9;margin-top:8px}
+.loot-hint b{color:var(--text);font-variant-numeric:tabular-nums}
+.loot-diff{color:var(--danger);font-variant-numeric:tabular-nums}
+/* 收益统计称号徽标：运气王 / 欧皇 */
+.loot-king{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;font-size:11px;font-weight:700;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;vertical-align:1px}
+html.dark .loot-king{background:#451a03;border-color:#78350f;color:#fcd34d}
+.loot-king.ou{color:#6b21a8;background:#f3e8ff;border-color:#d8b4fe}
+html.dark .loot-king.ou{background:#3b0764;border-color:#6b21a8;color:#d8b4fe}
+
+@media (max-width:768px){
+  main{padding:12px}
+  header{padding:0 12px}
+  .countdown{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= 顶部栏 ================= -->
+<header>
+  <div class="logo">🐉 龙之谷小助手<span class="mut" style="font-size:11px;font-weight:400;margin-left:2px">by 浩哥333</span></div>
+  <div class="week-badge" id="weekBadge" title="当前周ID">--</div>
+  <div class="countdown" id="countdown" title="距离副本重置"></div>
+  <div class="spacer"></div>
+  <button class="btn sm" id="btnTheme" title="切换暗黑模式">🌙</button>
+  <button class="btn sm" id="btnExport">📤 导出备份</button>
+  <button class="btn sm" id="btnSettings" title="系统设置">⚙️ 设置</button>
+</header>
+
+<!-- ================= 导航 ================= -->
+<nav class="tabs">
+  <button data-page="overview" class="active">📊 总览</button>
+  <button data-page="manage">⚙️ 管理</button>
+  <button data-page="stats">📈 统计</button>
+  <button data-page="loot">💰 分红</button>
+  <button data-page="donate">☕ 打赏</button>
+</nav>
+
+<main>
+  <!-- 时间异常提示 -->
+  <div class="banner warn" id="timeWarnBanner" style="display:none">
+    <span>⚠️ 检测到本机系统时间发生异常跳变（回退超过1小时），系统时间不准会影响自动重置判断，请校准本机时间。</span>
+    <button class="close" onclick="this.parentElement.style.display='none'">✕</button>
+  </div>
+
+  <!-- ================= 总览页 ================= -->
+  <section class="page active" id="page-overview">
+    <div class="card">
+      <h2>
+        本周副本进度
+        <span class="spacer"></span>
+        <button class="btn sm" id="btnExpandAll">全部展开</button>
+        <button class="btn sm warn" id="btnManualReset">🔄 手动重置本周</button>
+      </h2>
+      <div class="toolbar">
+        <div class="search-box"><input id="searchChar" placeholder="搜索角色名..."></div>
+        <select id="filterAccount"><option value="">全部账号</option></select>
+        <label class="flex" style="font-size:13px;color:var(--text-2)"><input type="checkbox" id="showArchived"> 显示已归档角色</label>
+        <label class="flex" style="font-size:13px;color:var(--text-2)"><input type="checkbox" id="showDisabledNest"> 显示已停用副本</label>
+        <select id="overviewWeek" class="week-select" title="切换查看的历史周（历史周只读）"></select>
+        <span class="mut" id="overviewWeekHint" style="font-size:12px;display:none">📖 历史周只读</span>
+      </div>
+      <div id="overviewTableWrap"></div>
+    </div>
+  </section>
+
+  <!-- ================= 管理页 ================= -->
+  <section class="page" id="page-manage">
+    <div class="card">
+      <div class="manage-tabs">
+        <button data-mtab="account" class="active">账号管理</button>
+        <button data-mtab="char">角色管理</button>
+        <button data-mtab="nest">副本管理</button>
+        <button data-mtab="job">职业配置</button>
+      </div>
+      <div id="mtab-account"></div>
+      <div id="mtab-char" style="display:none"></div>
+      <div id="mtab-nest" style="display:none"></div>
+      <div id="mtab-job" style="display:none"></div>
+    </div>
+  </section>
+
+  <!-- ================= 统计页 ================= -->
+  <section class="page" id="page-stats">
+    <div class="card">
+      <h2>
+        通关统计
+        <span class="spacer"></span>
+        <select id="statsWeek" class="week-select"></select>
+        <div class="stats-dim-tabs" id="statsDimTabs">
+          <button data-dim="account" class="active">按账号</button>
+          <button data-dim="char">按角色</button>
+          <button data-dim="nest">按副本</button>
+          <button data-dim="charIncome">角色收益</button>
+          <button data-dim="accountIncome">账号收益</button>
+        </div>
+      </h2>
+      <div id="statsBody"></div>
+    </div>
+  </section>
+
+  <!-- ================= 分红页 ================= -->
+  <section class="page" id="page-loot">
+    <div class="card">
+      <h2>
+        产出分红
+        <span class="spacer"></span>
+        <select id="lootWeek" class="week-select"></select>
+        <button class="btn primary sm" id="btnAddLoot">+ 记录产出</button>
+      </h2>
+      <div class="loot-sum" id="lootSum"></div>
+      <div id="lootMyIncome" class="loot-my"></div>
+      <div class="toolbar">
+        <div class="search-box"><input id="lootSearch" placeholder="搜索物品 / 队友 / 副本"></div>
+        <select id="lootFilter">
+          <option value="">全部状态</option>
+          <option value="open">待结清</option>
+          <option value="done">已结清</option>
+        </select>
+        <span class="spacer"></span>
+        <span class="mut" id="lootCount"></span>
+      </div>
+      <div id="lootBody"></div>
+    </div>
+  </section>
+
+  <!-- ================= 系统设置页 ================= -->
+  <section class="page" id="page-data">
+    <div class="card">
+      <h2>⚙️ 系统设置</h2>
+      <p class="mut" style="margin-bottom:16px;line-height:1.8">
+        本工具为 Tauri 桌面应用，数据按用途分为两个文件，均保存在程序同目录：<br>
+        • <b>龙之谷数据.json</b>（个人数据）：你当前的设置、副本、账号角色、通关记录、悬赏与分红记录。<br>
+        • <b>龙之谷固定数据.json</b>（固定数据）：默认设置（重置时间、等级、封印单价、开机自启）与职业表。<br>
+        • 启动时自动读取两个文件，所有修改自动保存；「清理数据」只清个人数据，固定数据保留。
+      </p>
+      <p class="mut" id="dataPathInfo" style="margin-bottom:16px;font-size:12px;word-break:break-all"></p>
+      <div class="flex" style="flex-wrap:wrap;gap:10px">
+        <button class="btn primary" onclick="exportBackup()">📤 导出备份</button>
+        <button class="btn danger" onclick="clearAllData()">🗑️ 清理数据</button>
+      </div>
+      <p class="mut" style="margin-top:8px;font-size:12px;color:var(--danger)">⚠️ 「清理数据」将清空全部账号、角色、副本与通关记录，操作不可撤销，建议先导出备份。</p>
+      <hr class="hr">
+      <h3 style="margin-bottom:10px;font-size:14px">重置设置</h3>
+      <div class="flex" style="flex-wrap:wrap;gap:14px">
+        <label class="flex">重置星期：
+          <select id="cfgResetWeekday">
+            <option value="0">周日</option><option value="1">周一</option><option value="2">周二</option>
+            <option value="3">周三</option><option value="4">周四</option><option value="5">周五</option>
+            <option value="6" selected>周六</option>
+          </select>
+        </label>
+        <label class="flex">重置小时：
+          <input type="number" id="cfgResetHour" min="0" max="23" value="9" style="width:70px"> 点
+        </label>
+        <button class="btn sm" onclick="saveResetCfg()">保存设置</button>
+      </div>
+      <hr class="hr">
+      <h3 style="margin-bottom:10px;font-size:14px">等级配置</h3>
+      <div class="flex" style="flex-wrap:wrap;gap:14px">
+        <label class="flex">默认等级：
+          <input type="number" id="cfgDefaultLevel" min="1" max="999" value="95" style="width:70px">
+        </label>
+        <label class="flex">等级上限：
+          <input type="number" id="cfgMaxLevel" min="1" max="999" value="99" style="width:70px">
+        </label>
+        <button class="btn sm" onclick="saveLevelCfg()">保存设置</button>
+        <span class="mut">新建角色时将使用默认等级，且不能超过等级上限</span>
+      </div>
+      <hr class="hr">
+      <h3 style="margin-bottom:10px;font-size:14px">封印设置</h3>
+      <div class="flex" style="flex-wrap:wrap;gap:14px">
+        <label class="flex">封印单价：
+          <input type="number" id="cfgSealPrice" min="0" value="5" style="width:90px"> 金币 / 个
+        </label>
+        <button class="btn sm" onclick="saveSealCfg()">保存设置</button>
+        <span class="mut">记录分红时按此单价扣除封印成本；已保存的记录沿用记录时的单价</span>
+      </div>
+      <hr class="hr">
+      <h3 style="margin-bottom:10px;font-size:14px">启动设置</h3>
+      <div class="flex" style="flex-wrap:wrap;gap:14px;align-items:center">
+        <label class="flex" style="cursor:pointer">
+          <input type="checkbox" id="cfgAutoStart" checked> 开机自动启动
+        </label>
+        <span class="mut">默认开启；关闭后将移除随 Windows 启动的注册项（仅桌面版生效）</span>
+      </div>
+      <hr class="hr">
+      <h3 style="margin-bottom:10px;font-size:14px">当前数据预览</h3>
+      <div id="dataPreview" class="mut" style="font-size:12px;line-height:1.8"></div>
+    </div>
+  </section>
+
+  <!-- ================= 打赏页 ================= -->
+  <section class="page" id="page-donate">
+    <div class="card">
+      <h2 style="justify-content:center">☕ 请作者喝杯咖啡</h2>
+      <div class="donate-text">
+        <p class="big">如果这个小助手帮你省下了记账的烦恼，欢迎打赏支持一下～</p>
+        <p>作者：<b>浩哥333</b> · 每一笔打赏都是持续优化的动力 🎮 祝各位谷迷周周出金、把把爆红！</p>
+      </div>
+      <div class="donate-grid">
+        <div class="donate-card">
+          <img src="assets/wechat_qr.png" alt="微信打赏码">
+          <div class="platform" style="color:#09bb07">💚 微信打赏</div>
+        </div>
+        <div class="donate-card">
+          <img src="assets/alipay_qr.png" alt="支付宝打赏码">
+          <div class="platform" style="color:#1677ff">💙 支付宝打赏</div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ================= 通用模态框 ================= -->
+<div class="modal-mask" id="modalMask">
+  <div class="modal">
+    <div class="modal-head"><h3 id="modalTitle"></h3><button class="close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div id="saveIndicator"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+ * 龙之谷副本周本离线管理工具
+ * 纯前端实现：HTML + CSS + JS，无后端，不联网，不使用 localStorage
+ * 数据通过浏览器文件 API 读写本地 JSON 文件
+ * ===================================================================== */
+
+/* ---------------- 全局状态 ---------------- */
+let S = null;                 // 主数据对象（与 JSON 文件结构一致）
+let dirty = false;            // 数据是否有未保存修改
+let collapsedAcc = {};        // 总览表格账号折叠状态
+let viewWeek = null;          // 总览当前查看的周：null 表示跟随本周
+let lastKnownTime = Date.now(); // 用于检测系统时间回退
+let countdownTimer = null;
+let autoSaveTimer = null;     // 自动保存防抖定时器
+let isTauri = false;          // 是否运行在 Tauri 环境中
+let FIXED_DEFAULTS = null;    // 固定数据里的默认设置（从固定数据文件读取，缺省用内置值）
+
+/* ---------------- 工具函数 ---------------- */
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const uid = p => p + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+function markDirty(){
+  dirty = true;
+  renderDataPreview();
+  scheduleAutoSave();
+}
+function clearDirty(){ dirty = false; }
+// 防抖自动保存：500ms 内多次修改只写一次
+function scheduleAutoSave(){
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => autoSave(), 500);
+}
+// 左下角保存状态指示器：显示 2 秒后自动消失，不打扰操作
+function showSaveIndicator(msg, isErr){
+  const el = $('#saveIndicator');
+  el.textContent = msg;
+  el.classList.toggle('err', !!isErr);
+  el.classList.add('show');
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.classList.remove('show'), 2000);
+}
+// 数据拆分：固定数据（默认设置 + 职业表）与个人数据分开存放
+// 个人数据：config / nestList / accountList / lootList → 龙之谷数据.json
+// 固定数据：defaultConfig（默认设置） + jobList（职业表）→ 龙之谷固定数据.json
+function personalPart(){
+  return {
+    app: '龙之谷小助手', type: 'personal', version: 3,
+    config: S.config, nestList: S.nestList, accountList: S.accountList, lootList: S.lootList
+  };
+}
+function fixedPart(){
+  const d = Object.assign({}, FIXED_DEFAULTS || defaultConfig());
+  delete d.currentWeekId; // 当前周属于个人运行状态，不作为默认值保存
+  return { app: '龙之谷小助手', type: 'fixed', version: 3, defaultConfig: d, jobList: S.jobList };
+}
+// 只写固定数据文件
+async function writeFixedFile(){
+  await window.__TAURI__.invoke('write_fixed_file', { content: JSON.stringify(fixedPart(), null, 2) });
+}
+// 自动保存到数据文件（个人 + 固定两个文件）
+async function autoSave(){
+  if (!S) return;
+  if (isTauri) {
+    try {
+      await Promise.all([
+        window.__TAURI__.invoke('write_data_file', { content: JSON.stringify(personalPart(), null, 2) }),
+        writeFixedFile()
+      ]);
+      clearDirty();
+      showSaveIndicator('✅ 已自动保存');
+    } catch (e) {
+      console.error('自动保存失败', e);
+      showSaveIndicator('❌ 保存失败：' + e, true);
+    }
+  } else {
+    // 浏览器环境降级：标记为未保存
+    console.warn('非 Tauri 环境，无法自动保存');
+  }
+}
+
+/* ---------------- 周ID / 时间计算 ---------------- */
+// ISO 8601 周数计算，返回 "2026-W42" 格式
+function isoWeekId(date){
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+}
+// 计算给定时间的"本周周六 resetHour 点"（即下一个重置点候选）
+function nextResetTime(now = new Date()){
+  const wd = S.config.resetWeekday, hr = S.config.resetHour;
+  const d = new Date(now);
+  let diff = (wd - d.getDay() + 7) % 7;
+  const candidate = new Date(d); candidate.setDate(d.getDate() + diff); candidate.setHours(hr, 0, 0, 0);
+  if (now >= candidate) candidate.setDate(candidate.getDate() + 7); // 已过本周重置点，取下周
+  return candidate;
+}
+// 根据当前时间计算应有的周ID：
+// 找到最近一个已过去的重置点（周六9点），取其ISO周作为周ID
+// 同一重置周期内周ID保持一致，跨过重置点后周ID递增
+function computeCurrentWeekId(now = new Date()){
+  const wd = S.config.resetWeekday, hr = S.config.resetHour;
+  const d = new Date(now);
+  let diff = (d.getDay() - wd + 7) % 7;      // 距离上一个重置日的天数
+  const start = new Date(d);
+  start.setDate(d.getDate() - diff);
+  start.setHours(hr, 0, 0, 0);
+  if (now < start) start.setDate(start.getDate() - 7); // 未到今日重置点，取上周
+  return isoWeekId(start);
+}
+// 倒计时到下次重置
+function fmtCountdown(ms){
+  if (ms < 0) ms = 0;
+  const s = Math.floor(ms / 1000);
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  return `${d}天 ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+/* ---------------- 数据初始化 / 迁移 ---------------- */
+// 默认设置（固定数据）：缺省值存于 龙之谷固定数据.json，个人数据只存实际值
+function defaultConfig(){
+  return { resetWeekday: 6, resetHour: 9, currentWeekId: '', defaultLevel: 95, maxLevel: 99, autoStart: true, sealUnitPrice: 5 };
+}
+// 默认职业表（固定数据）
+function defaultJobList(){
+  return [
+    { id: 'j_warrior',   name: '战士',   color: '#b7791f', subs: [
+      { id: 's_jianhuang',  name: '剑皇' }, { id: 's_yuezhu', name: '月之领主' },
+      { id: 's_kuangzhan',  name: '狂战士' }, { id: 's_huimie', name: '毁灭者' },
+      { id: 's_heifu',      name: '黑暗复仇者' } ] },
+    { id: 'j_archer',    name: '弓箭手', color: '#84cc16', subs: [
+      { id: 's_moyu',  name: '魔羽' }, { id: 's_juling',   name: '狙翎' },
+      { id: 's_fengxing', name: '风行者' }, { id: 's_yingwu', name: '影舞者' } ] },
+    { id: 'j_sorceress', name: '魔法师', color: '#8e44ad', subs: [
+      { id: 's_huowu',   name: '火舞' }, { id: 's_bingling', name: '冰灵' },
+      { id: 's_shikong', name: '时空领主' }, { id: 's_heiannvwang', name: '黑暗女王' } ] },
+    { id: 'j_cleric',    name: '牧师',   color: '#63b3ed', subs: [
+      { id: 's_shengqishi', name: '圣骑士' }, { id: 's_shizijun', name: '十字军' },
+      { id: 's_shengtu',    name: '圣徒' }, { id: 's_leishen',   name: '雷神' } ] },
+    { id: 'j_academic',  name: '学者',   color: '#1abc9c', subs: [
+      { id: 's_jixie',   name: '机械大师' }, { id: 's_zhongpao', name: '重炮手' },
+      { id: 's_lianjin', name: '炼金圣士' }, { id: 's_yaoji',   name: '药剂师' } ] },
+    { id: 'j_kali',      name: '卡莉',   color: '#907a61', subs: [
+      { id: 's_saman',   name: '黑暗萨满' }, { id: 's_shihun', name: '噬魂者' },
+      { id: 's_daofeng', name: '刀锋舞者' }, { id: 's_linghun', name: '灵魂舞者' } ] },
+    { id: 'j_assassin',  name: '刺客',   color: '#00a86b', subs: [
+      { id: 's_ying',    name: '影' }, { id: 's_an',      name: '暗' },
+      { id: 's_yao',     name: '曜' }, { id: 's_lie',     name: '烈' } ] }
+  ];
+}
+function blankState(){
+  return {
+    config: Object.assign({}, FIXED_DEFAULTS || defaultConfig(), { currentWeekId: '' }),
+    jobList: defaultJobList(),
+    nestList: [],
+    accountList: [],
+    lootList: []
+  };
+}
+// 兼容旧格式：weeklyRecord 值若为 boolean 则转为 {c,t} 对象；补齐新增字段
+function migrateState(st){
+  st.config = Object.assign({}, FIXED_DEFAULTS || defaultConfig(), st.config);
+  st.jobList = st.jobList || []; st.nestList = st.nestList || []; st.accountList = st.accountList || [];
+  // 分红记录（旧数据文件没有该字段；旧单物品结构迁移为 items 数组）
+  st.lootList = st.lootList || [];
+  st.lootList.forEach(l => {
+    l.participants = l.participants || [];
+    if (!Array.isArray(l.items)){
+      l.items = l.itemName ? [{
+        id: (l.id || 'loot') + '_i1',
+        name: l.itemName,
+        sealCount: l.sealCount || 0,
+        sealUnitPrice: l.sealUnitPrice || 0,
+        price: l.price || 0,
+        soldAt: (l.price || 0) > 0 ? (l.date || null) : null
+      }] : [];
+      delete l.itemName; delete l.qty; delete l.price; delete l.sealCount; delete l.sealUnitPrice;
+    }
+  });
+  // 旧职业数据无 subs 字段，补空数组
+  st.jobList.forEach(j => { j.subs = j.subs || []; });
+  // 旧副本数据迁移：规模补默认 4 人；旧数字优先级映射为三档悬赏
+  st.nestList.forEach(n => {
+    if (n.size === undefined) n.size = 4;
+    if (typeof n.priority === 'number') n.priority = n.priority >= 60 ? 'high' : (n.priority >= 30 ? 'mid' : 'low');
+    if (!n.priority) n.priority = 'low';
+  });
+  // 副本自定义排序：order 越小越靠前；旧数据按原有优先级顺序补齐
+  if (st.nestList.some(n => typeof n.order !== 'number')) {
+    const w = { high: 3, mid: 2, low: 1 };
+    st.nestList.map((n, i) => ({ n, i }))
+      .sort((a, b) => (w[b.n.priority] || 1) - (w[a.n.priority] || 1) || a.i - b.i)
+      .forEach((x, idx) => { x.n.order = idx; });
+  }
+  st.accountList.forEach(a => (a.charList || []).forEach(c => {
+    c.weeklyRecord = c.weeklyRecord || {};
+    c.availableNestIds = c.availableNestIds || [];
+    if (c.enable === undefined) c.enable = true;
+    if (c.subJobId === undefined) c.subJobId = null;
+    // 悬赏记录：按周ID存储 { nests: {nid: 完成与否}, done: 已完成次数 }，每周独立
+    if (!c.bounty) c.bounty = {};
+    Object.keys(c.weeklyRecord).forEach(w => {
+      const rec = c.weeklyRecord[w] || {};
+      Object.keys(rec).forEach(n => {
+        if (typeof rec[n] === 'boolean') rec[n] = { c: rec[n], t: null };
+      });
+      c.weeklyRecord[w] = rec;
+    });
+  }));
+  return st;
+}
+// 清理数据：清空全部数据恢复初始状态，二次确认（危险操作）
+function clearAllData(){
+  if (!confirm('⚠️ 危险操作：清理数据\n\n将清空所有账号、角色、副本、通关记录与分红记录，设置恢复为默认值（职业表等固定数据保留）。\n此操作不可撤销，建议先点击「导出备份」保存当前数据！\n\n确定继续吗？')) return;
+  if (!confirm('🚨 再次确认\n\n真的要清空全部个人数据吗？此操作无法恢复！')) return;
+  const fixedJobs = S.jobList;      // 固定数据（职业表）不属于个人数据，清理时保留
+  S = blankState();
+  S.jobList = fixedJobs;
+  S.config.currentWeekId = computeCurrentWeekId();
+  markDirty(); renderAll(); toast('个人数据已清理');
+}
+
+/* ---------------- 文件读写 ---------------- */
+let loadErrorMsg = '';   // 记录读取失败原因，用于避免误覆盖已有存档
+// 从数据文件加载（Tauri 启动时自动调用）
+async function loadFromDisk(){
+  if (!isTauri) return false;
+  let st = null;
+  // 第一步：只做读取与解析，失败则不动内存中的状态
+  try {
+    const text = await window.__TAURI__.invoke('read_data_file');
+    st = JSON.parse(text);
+  } catch (e) {
+    loadErrorMsg = String(e);
+    console.log('数据文件不存在或读取失败，使用空白存档', e);
+    return false;
+  }
+  // 第二步：读取固定数据（默认设置 + 职业表）；缺失时退回内置默认，稍后补写文件
+  let fx = null, fxMissing = false;
+  try {
+    fx = JSON.parse(await window.__TAURI__.invoke('read_fixed_file'));
+  } catch (e) {
+    fxMissing = String(e).includes('文件不存在');
+    if (!fxMissing) console.warn('固定数据文件读取失败，暂用内置默认', e);
+  }
+  const fxDefaults = fx && fx.defaultConfig && typeof fx.defaultConfig === 'object' ? fx.defaultConfig : null;
+  // 默认设置以固定数据文件为准，个人数据里缺的键才用它补齐
+  FIXED_DEFAULTS = Object.assign(defaultConfig(), fxDefaults || {});
+  const legacyJobList = Array.isArray(st.jobList) && st.jobList.length > 0;
+  const fixedJobs = fx && Array.isArray(fx.jobList) && fx.jobList.length ? fx.jobList : null;
+  if (fixedJobs) st.jobList = fixedJobs;
+
+  // 第三步：应用数据并渲染；渲染异常不影响已加载的数据，也绝不覆盖原文件
+  S = migrateState(st);
+  if (!S.jobList.length) S.jobList = blankState().jobList;
+  // 固定数据文件不存在、或是旧版（没有 defaultConfig）时补写一份
+  if (fxMissing || (fx && !fxDefaults)){
+    try { await writeFixedFile(); } catch (e) { console.warn('固定数据文件写入失败', e); }
+  }
+  // 个人文件里遗留了 jobList（旧版布局）时，保存一次把它移出，完成拆分迁移
+  if (fxMissing || legacyJobList) scheduleAutoSave();
+  S.config.currentWeekId = computeCurrentWeekId();
+  clearDirty();
+  checkAutoReset();
+  renderAll();
+  toast('已加载数据文件');
+  return true;
+}
+
+// 导出备份
+async function exportBackup(){
+  if (!S) { toast('当前无数据'); return; }
+  const json = JSON.stringify(S, null, 2);
+  const fname = `龙之谷备份_${S.config.currentWeekId}_${new Date().toISOString().slice(0,10)}.json`;
+  if (isTauri) {
+    try {
+      const path = await window.__TAURI__.dialog.save({
+        defaultPath: fname,
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      });
+      if (path) {
+        await window.__TAURI__.fs.writeTextFile(path, json);
+        toast('备份已导出到 ' + path);
+      }
+    } catch (e) {
+      console.error('导出失败', e);
+      toast('导出失败：' + e);
+    }
+  } else {
+    // 浏览器降级：下载
+    const blob = new Blob([json], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = fname; a.click();
+    URL.revokeObjectURL(a.href);
+    toast('已下载 ' + fname);
+  }
+}
+$('#btnExport').addEventListener('click', exportBackup);
+
+/* ---------------- 周重置逻辑 ---------------- */
+function doReset(manual){
+  const newWeek = computeCurrentWeekId();
+  const oldWeek = S.config.currentWeekId;
+  if (manual || newWeek !== oldWeek) {
+    S.config.currentWeekId = newWeek;
+    viewWeek = null; // 切周后总览回到本周视图
+    markDirty(); renderAll();
+    toast(manual ? `已手动重置，进入新的一周 ${newWeek}` : `已自动重置：${oldWeek} → ${newWeek}`);
+    return true;
+  }
+  return false;
+}
+function checkAutoReset(){
+  const cur = computeCurrentWeekId();
+  if (S.config.currentWeekId && S.config.currentWeekId !== cur) doReset(false);
+  else if (!S.config.currentWeekId) { S.config.currentWeekId = cur; }
+}
+function manualReset(){
+  if (!confirm(`确定要手动重置本周进度吗？\n\n当前周：${S.config.currentWeekId}\n重置后本周所有通关勾选将清空（历史周记录保留）。`)) return;
+  doReset(true);
+}
+$('#btnManualReset').addEventListener('click', manualReset);
+
+/* ---------------- 数据访问辅助 ---------------- */
+const jobById   = id => S.jobList.find(j => j.id === id);
+const nestById  = id => S.nestList.find(n => n.id === id);
+const accById   = id => S.accountList.find(a => a.id === id);
+function charById(cid){ for (const a of S.accountList){ const c = (a.charList||[]).find(x=>x.id===cid); if (c) return {acc:a, char:c}; } return null; }
+function jobColor(jobId){ const j = jobById(jobId); return j ? j.color : '#94a3b8'; }
+function jobName(jobId){ const j = jobById(jobId); return j ? j.name : '未设置'; }
+// 根据 subJobId 查二转职业名
+function subJobName(jobId, subId){
+  if (!subId) return null;
+  const j = jobById(jobId); if (!j || !j.subs) return null;
+  const s = j.subs.find(x => x.id === subId);
+  return s ? s.name : null;
+}
+// 角色显示用职业名：优先显示二转职业，否则显示 0 转职业
+function charJobName(c){ return subJobName(c.jobId, c.subJobId) || jobName(c.jobId); }
+// 副本展示顺序：以 order 字段（副本管理中拖动排序）为准，未设置时按优先级兜底
+const PRIORITY_WEIGHT = { high: 3, mid: 2, low: 1 };
+const PRIORITY_LABEL = { high: '🔥高悬赏', mid: '⭐中悬赏', low: '' };
+function sortedNests(list){
+  // 以副本管理中拖动的自定义顺序（order）为准，未设置时按优先级兜底
+  return list.slice().sort((a, b) => {
+    const ao = typeof a.order === 'number' ? a.order : 1e9;
+    const bo = typeof b.order === 'number' ? b.order : 1e9;
+    if (ao !== bo) return ao - bo;
+    return (PRIORITY_WEIGHT[b.priority] || 1) - (PRIORITY_WEIGHT[a.priority] || 1);
+  });
+}
+// 当前周角色某副本记录
+function getRec(char, nestId, weekId = S.config.currentWeekId){
+  const w = char.weeklyRecord[weekId]; if (!w) return null;
+  return w[nestId] || null;
+}
+// 读取角色本周悬赏：{ nests: {nid: 是否完成}, done: 已完成次数(0-6) }，无记录返回 null
+function getBounty(c, weekId = S.config.currentWeekId){
+  return c.bounty?.[weekId] || null;
+}
+function setRec(char, nestId, val){
+  const w = S.config.currentWeekId;
+  char.weeklyRecord[w] = char.weeklyRecord[w] || {};
+  if (val === null) delete char.weeklyRecord[w][nestId];
+  else char.weeklyRecord[w][nestId] = val;
+}
+// 当前可见副本列（按自定义顺序，含停用副本时纳入）
+function visibleNests(){
+  return sortedNests(S.nestList.filter(n => n.enable || $('#showDisabledNest').checked));
+}
+// 角色在某周的进度：done 仅统计启用且可通关且已通关，avail 统计所有可通关副本
+function charProgress(c, nests, weekId = S.config.currentWeekId){
+  let done = 0, avail = 0;
+  nests.forEach(n => {
+    const isAvail = c.availableNestIds.includes(n.id);
+    if (isAvail) avail++;
+    if (isAvail && n.enable && getRec(c, n.id, weekId)?.c) done++;
+  });
+  return { done, avail };
+}
+// 通关时间显示格式：MM-DD HH:mm
+function fmtRecTime(rec){
+  const t = rec?.t ? new Date(rec.t) : null;
+  return t ? `${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}` : '';
+}
+
+/* =====================================================================
+ * 总览页渲染
+ * ===================================================================== */
+function renderOverview(){
+  const wrap = $('#overviewTableWrap');
+  const search = $('#searchChar').value.trim().toLowerCase();
+  const filterAcc = $('#filterAccount').value;
+  const showArchived = $('#showArchived').checked;
+  const showDisabledNest = $('#showDisabledNest').checked;
+
+  // 周选择：默认本周；选历史周时整页只读
+  const weeks = allWeekIds();
+  const wkSel = $('#overviewWeek');
+  const wantWeek = viewWeek || S.config.currentWeekId;
+  wkSel.innerHTML = weeks.map(w => `<option value="${w}">${w}${w===S.config.currentWeekId?'（本周）':''}</option>`).join('');
+  wkSel.value = weeks.includes(wantWeek) ? wantWeek : S.config.currentWeekId;
+  const week = wkSel.value;
+  const readonly = week !== S.config.currentWeekId;
+  $('#overviewWeekHint').style.display = readonly ? '' : 'none';
+
+  // 账号筛选下拉
+  const sel = $('#filterAccount');
+  const curVal = sel.value;
+  sel.innerHTML = '<option value="">全部账号</option>' + S.accountList.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
+  sel.value = curVal;
+
+  // 可见副本列（按优先级降序排列）
+  const nests = visibleNests();
+  if (S.accountList.length === 0){
+    wrap.innerHTML = `<div class="empty"><div class="icon">🗂️</div>暂无账号数据，请先到「管理」页添加账号和角色</div>`;
+    return;
+  }
+
+  let html = `<div class="tbl-wrap"><table><thead><tr><th class="col-sep col-fix" style="min-width:170px">账号 / 角色</th>`;
+  nests.forEach(n => {
+    html += `<th class="num nest-head" title="${esc(n.name)}${n.enable?'':'（已停用）'}">${esc(n.name)}${n.enable?'':'<span class="st">停用</span>'}</th>`;
+  });
+  html += `<th class="num">${readonly?'当周进度':'本周进度'}</th><th class="num">批量</th></tr></thead><tbody>`;
+
+  let anyRow = false;
+  S.accountList.forEach(acc => {
+    if (filterAcc && acc.id !== filterAcc) return;
+    // 该账号下符合搜索条件的角色
+    const chars = (acc.charList || []).filter(c => {
+      if (!showArchived && !c.enable) return false;
+      if (search && !c.name.toLowerCase().includes(search)) return false;
+      return true;
+    });
+    if (search && chars.length === 0) return;
+    anyRow = true;
+    const collapsed = collapsedAcc[acc.id];
+    // 账号行
+    const accTotal = chars.reduce((s,c) => s + c.availableNestIds.filter(nid => nests.some(n=>n.id===nid)).length, 0);
+    const accDone  = chars.reduce((s,c) => s + c.availableNestIds.filter(nid => nests.some(n=>n.id===nid) && getRec(c,nid,week)?.c).length, 0);
+    html += `<tr class="row-acc ${collapsed?'collapsed':''}" data-acc="${acc.id}">
+      <td colspan="${nests.length + 3}"><span class="arrow">▼</span>📁 ${esc(acc.name)}
+      <span class="mut" data-acc-prog>（${chars.length} 个角色 · ${readonly?week:'本周'} ${accDone}/${accTotal}）</span></td></tr>`;
+    if (collapsed) return;
+    // 角色行
+    chars.forEach(c => {
+      const color = jobColor(c.jobId);
+      const hiddenCls = c.enable ? '' : ' char-hidden-row';
+      // 本周悬赏：小字标签显示，已完成绿色、未完成普通色，点击编辑悬赏
+      const bounty = getBounty(c, week);
+      const bountyTags = bounty && Object.keys(bounty.nests || {}).length
+        ? Object.entries(bounty.nests).map(([nid, isDone]) => {
+            const nn = nestById(nid);
+            if (!nn) return '';
+            const fl = bounty.flags?.[nid] || {};
+            const fs = [fl.g ? '同会' : '', fl.t ? '限时' : ''].filter(Boolean).join('·');
+            const lv = ['L','S','A','B','C'].includes(fl.lv) ? `<i class="bt-grade lv-${fl.lv}">${fl.lv}</i>` : '';
+            return `<span class="bounty-tag ${isDone ? 'done' : ''}">${lv}${esc(nn.name)}${fs ? `<i class="bt-flag">${fs}</i>` : ''}</span>`;
+          }).join('')
+        : '';
+      const cntTag = bounty ? `<span class="bounty-tag cnt${(bounty.done || 0) >= 6 ? ' done' : ''}">悬赏 ${bounty.done || 0}/6</span>` : '';
+      const bountyHtml = `<div class="bounty-line${readonly?' ro':''}" data-bounty-cid="${c.id}" title="${readonly?'历史周只读':'点击设置本周悬赏'}">${bountyTags}${cntTag}<span class="bounty-add">${bountyTags ? '' : '＋ 设置悬赏'}</span></div>`;
+      html += `<tr class="char-row${hiddenCls}" data-cid="${c.id}">
+        <td class="col-sep col-fix"><span class="job-dot" style="background:${color}"></span>
+          <b style="color:${color}">${esc(c.name)}</b>
+          <span class="mut">Lv.${c.level} ${esc(charJobName(c))}${c.enable?'':' [已归档]'}</span>
+          ${bountyHtml}</td>`;
+      let done = 0, avail = 0;
+      nests.forEach(n => {
+        const can = c.availableNestIds.includes(n.id) && n.enable;
+        const rec = getRec(c, n.id, week);
+        if (c.availableNestIds.includes(n.id)) avail++;
+        if (can){
+          if (rec?.c) done++;
+          const t = rec?.t ? new Date(rec.t) : null;
+          const tStr = t ? `${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}` : '';
+          html += `<td class="cell-nest ${rec?.c ? 'cleared' : ''}${readonly ? ' ro' : ''}" data-cid="${c.id}" data-nid="${n.id}" title="${readonly ? '历史周只读' : '点击切换通关状态'}${tStr ? ' · 通关于 ' + tStr : ''}">
+            <span class="cell-check">✓</span>${tStr && rec?.c ? `<span class="rec-time">${tStr}</span>` : ''}</td>`;
+        } else {
+          const reason = !n.enable ? '副本已停用' : '该角色不可通关此副本';
+          html += `<td class="cell-nest disabled" title="${reason}"><span class="cell-check">—</span></td>`;
+        }
+      });
+      html += `<td class="num"><b data-prog="${c.id}" style="color:${done===avail&&avail>0?'var(--success)':'var(--text)'}">${done}/${avail}</b></td>
+        <td class="num"><button class="btn xs" data-batch="${c.id}" ${readonly ? 'disabled' : ''}>批量</button></td></tr>`;
+    });
+  });
+  html += '</tbody></table></div>';
+  wrap.innerHTML = anyRow ? html : `<div class="empty"><div class="icon">🔍</div>没有符合条件的角色</div>`;
+
+  // 绑定事件
+  wrap.querySelectorAll('.row-acc').forEach(tr => tr.addEventListener('click', () => {
+    const id = tr.dataset.acc; collapsedAcc[id] = !collapsedAcc[id]; renderOverview();
+  }));
+  wrap.querySelectorAll('.cell-nest:not(.disabled)').forEach(td => td.addEventListener('click', () => {
+    if (td.classList.contains('ro')){ toast('历史周只读，请切回本周'); return; }
+    toggleCell(td.dataset.cid, td.dataset.nid);
+  }));
+  wrap.querySelectorAll('[data-batch]').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (btn.disabled){ toast('历史周只读，请切回本周'); return; }
+    openBatchModal(btn.dataset.batch);
+  }));
+  // 悬赏行点击：打开悬赏编辑弹窗
+  wrap.querySelectorAll('[data-bounty-cid]').forEach(el => el.addEventListener('click', e => {
+    e.stopPropagation();
+    if (el.classList.contains('ro')){ toast('历史周只读，请切回本周'); return; }
+    openBountyModal(el.dataset.bountyCid);
+  }));
+  fitTables();
+}
+/* ---------------- 悬赏功能 ---------------- */
+// 悬赏编辑弹窗：设置本周悬赏副本、标记完成状态、已完成次数(0-6)
+function openBountyModal(cid){
+  const found = charById(cid); if (!found) return;
+  const c = found.char;
+  const weekId = S.config.currentWeekId;
+  const old = getBounty(c) || { nests: {}, done: 0 };
+  // 弹窗内编辑用的临时副本，保存时才写入
+  const temp = { nests: Object.assign({}, old.nests), done: Math.min(6, old.done || 0), flags: JSON.parse(JSON.stringify(old.flags || {})) };
+  // 只列出该角色可通关的启用副本作为悬赏候选
+  const candidates = sortedNests(S.nestList.filter(n => n.enable && c.availableNestIds.includes(n.id)));
+  const rowsHtml = candidates.length
+    ? candidates.map(n => {
+      const inBounty = temp.nests[n.id] !== undefined;
+      const fl = temp.flags[n.id] || {};
+      if (!temp.flags[n.id]) temp.flags[n.id] = {};
+      const lvOpts = ['', 'L', 'S', 'A', 'B', 'C'].map(v =>
+        `<option value="${v}" ${(fl.lv || '') === v ? 'selected' : ''}>${v || '等级'}</option>`).join('');
+      return `
+      <div class="bounty-row">
+        <label><input type="checkbox" data-bnid="${n.id}" ${inBounty ? 'checked' : ''}>
+          ${esc(n.name)} <span class="mut">${n.size}人</span></label>
+        <select class="lv-sel${fl.lv ? ' lv-' + fl.lv : ''}" data-lvid="${n.id}" title="悬赏等级 L/S/A/B/C" ${inBounty ? '' : 'disabled'}>${lvOpts}</select>
+        <label class="opt"><input type="checkbox" data-fnid="${n.id}" data-flag="g" ${fl.g ? 'checked' : ''} ${inBounty ? '' : 'disabled'}> 同工会</label>
+        <label class="opt"><input type="checkbox" data-fnid="${n.id}" data-flag="t" ${fl.t ? 'checked' : ''} ${inBounty ? '' : 'disabled'}> 限时</label>
+        <button type="button" class="btn xs bounty-toggle" data-bnid="${n.id}" ${inBounty ? '' : 'disabled'}
+          style="${temp.nests[n.id] ? 'background:var(--success);color:#fff' : ''}">${temp.nests[n.id] ? '✓ 已完成' : '○ 未完成'}</button>
+      </div>`;
+    }).join('')
+    : '<span class="mut">该角色暂无可通关的启用副本，请先在角色编辑中勾选可通关副本</span>';
+  openModal(`🎯 ${esc(c.name)} 的本周悬赏（${weekId}）`, `
+    <div class="form-row"><label>本周已完成悬赏次数（最高 6 次）</label>
+      <div class="flex" style="gap:10px">
+        <button type="button" class="btn sm" id="bDoneMinus">－</button>
+        <b id="bDoneVal" style="font-size:16px">${temp.done}</b><span class="mut">/ 6</span>
+        <button type="button" class="btn sm" id="bDonePlus">＋</button>
+      </div>
+    </div>
+    <div class="form-row"><label>本周悬赏副本（勾选加入悬赏，可设置等级 L/S/A/B/C 与「同工会 / 限时」，右侧按钮标记完成状态）</label>
+      <div id="bountyNestList">${rowsHtml}</div>
+    </div>`,
+    [{ text:'取消', fn: closeModal },
+     { text:'保存', cls:'primary', fn: () => {
+       // 写回角色数据（即使为空也记录本周，方便区分"未设置"）
+       // 只保留仍在悬赏列表中的副本标记
+       const flags = {};
+       Object.keys(temp.flags || {}).forEach(nid => {
+         const f = temp.flags[nid];
+         if (temp.nests[nid] === undefined || !f) return;
+         const one = {};
+         if (f.g) one.g = true;
+         if (f.t) one.t = true;
+         if (['L','S','A','B','C'].includes(f.lv)) one.lv = f.lv;
+         if (Object.keys(one).length) flags[nid] = one;
+       });
+       c.bounty = c.bounty || {};
+       c.bounty[weekId] = { nests: temp.nests, done: temp.done, flags };
+       markDirty(); closeModal(); renderOverview();
+     }}]);
+  // 次数增减
+  $('#bDoneMinus').addEventListener('click', () => { temp.done = Math.max(0, temp.done - 1); $('#bDoneVal').textContent = temp.done; });
+  $('#bDonePlus').addEventListener('click', () => { temp.done = Math.min(6, temp.done + 1); $('#bDoneVal').textContent = temp.done; });
+  // 勾选加入/移出悬赏
+  $$('#bountyNestList input[type=checkbox][data-bnid]').forEach(cb => cb.addEventListener('change', () => {
+    const nid = cb.dataset.bnid;
+    const btn = $(`#bountyNestList .bounty-toggle[data-bnid="${nid}"]`);
+    const lvSel = $(`#bountyNestList select[data-lvid="${nid}"]`);
+    $$(`#bountyNestList input[data-fnid="${nid}"]`).forEach(o => o.disabled = !cb.checked);
+    if (lvSel) lvSel.disabled = !cb.checked;
+    if (cb.checked){ temp.nests[nid] = false; temp.flags[nid] = temp.flags[nid] || {}; btn.disabled = false; btn.textContent = '○ 未完成'; btn.style.cssText = ''; }
+    else { delete temp.nests[nid]; delete temp.flags[nid]; btn.disabled = true; btn.textContent = '○ 未完成'; btn.style.cssText = '';
+      if (lvSel){ lvSel.value = ''; lvSel.className = 'lv-sel'; }
+      $$(`#bountyNestList input[data-fnid="${nid}"]`).forEach(o => o.checked = false); }
+  }));
+  // 悬赏等级 L/S/A/B/C
+  $$('#bountyNestList select[data-lvid]').forEach(sel => sel.addEventListener('change', () => {
+    const nid = sel.dataset.lvid;
+    if (temp.nests[nid] === undefined) return;
+    temp.flags[nid] = temp.flags[nid] || {};
+    if (sel.value) temp.flags[nid].lv = sel.value; else delete temp.flags[nid].lv;
+    // 下拉框按所选等级即时变色
+    sel.className = 'lv-sel' + (sel.value ? ' lv-' + sel.value : '');
+  }));
+  // 同工会 / 限时标记
+  $$('#bountyNestList input[data-flag]').forEach(cb => cb.addEventListener('change', () => {
+    const nid = cb.dataset.fnid, key = cb.dataset.flag;
+    temp.flags[nid] = temp.flags[nid] || {};
+    if (cb.checked) temp.flags[nid][key] = true; else delete temp.flags[nid][key];
+  }));
+  // 切换完成状态
+  $$('#bountyNestList .bounty-toggle').forEach(btn => btn.addEventListener('click', () => {
+    const nid = btn.dataset.bnid;
+    if (temp.nests[nid] === undefined) return;
+    temp.nests[nid] = !temp.nests[nid];
+    btn.textContent = temp.nests[nid] ? '✓ 已完成' : '○ 未完成';
+    btn.style.cssText = temp.nests[nid] ? 'background:var(--success);color:#fff' : '';
+  }));
+}
+// 切换单元格通关状态（局部更新，不整页重绘，保持滚动位置）
+function toggleCell(cid, nid){
+  const found = charById(cid); if (!found) return;
+  const c = found.char;
+  const week = $('#overviewWeek').value || S.config.currentWeekId;
+  if (week !== S.config.currentWeekId){ toast('历史周只读，请切回本周'); return; }
+  const rec = getRec(c, nid, week);
+  if (rec?.c){
+    const nest = S.nestList.find(n => n.id === nid);
+    confirmModal('取消通关确认',
+      `<div style="line-height:1.9">确定取消 <b>${esc(c.name)}</b> 的「${esc(nest ? nest.name : nid)}」通关勾选吗？<br><span style="color:var(--text-2);font-size:12px">取消后该次通关记录将被删除。</span></div>`,
+      () => {
+        setRec(c, nid, null);                             // 取消通关 → 删除记录
+        markDirty();
+        refreshCell(cid, nid, week);
+        refreshCounts(cid, week);
+      }, '取消勾选');
+    return;
+  }
+  setRec(c, nid, { c: true, t: new Date().toISOString() }); // 标记通关并记录时间
+  markDirty();
+  refreshCell(cid, nid, week);
+  refreshCounts(cid, week);
+}
+// 仅刷新某个通关单元格（勾选状态与时间），避免整表重建
+function refreshCell(cid, nid, week = S.config.currentWeekId){
+  const found = charById(cid); if (!found) return;
+  const td = document.querySelector(`#overviewTableWrap td.cell-nest[data-cid="${cid}"][data-nid="${nid}"]`);
+  if (!td) return;
+  const rec = getRec(found.char, nid, week);
+  const tStr = fmtRecTime(rec);
+  td.classList.toggle('cleared', !!rec?.c);
+  td.innerHTML = `<span class="cell-check">✓</span>${tStr && rec?.c ? `<span class="rec-time">${tStr}</span>` : ''}`;
+  td.title = `点击切换通关状态${tStr ? ' · 通关于 ' + tStr : ''}`;
+}
+// 刷新角色的完成数、所在账号汇总（保持表格与滚动位置不变）
+function refreshCounts(cid, week = S.config.currentWeekId){
+  const found = charById(cid); if (!found) return;
+  const c = found.char;
+  const prog = document.querySelector(`#overviewTableWrap [data-prog="${cid}"]`);
+  if (prog){
+    const p = charProgress(c, visibleNests(), week);
+    prog.textContent = `${p.done}/${p.avail}`;
+    prog.style.color = p.done === p.avail && p.avail > 0 ? 'var(--success)' : 'var(--text)';
+  }
+  const accSpan = document.querySelector(`#overviewTableWrap tr.row-acc[data-acc="${found.acc.id}"] [data-acc-prog]`);
+  if (accSpan){
+    const search = $('#searchChar').value.trim().toLowerCase();
+    const showArchived = $('#showArchived').checked;
+    const nests = visibleNests();
+    const chars = (found.acc.charList || []).filter(x => {
+      if (!showArchived && !x.enable) return false;
+      if (search && !x.name.toLowerCase().includes(search)) return false;
+      return true;
+    });
+    const total = chars.reduce((s,x) => { const q = charProgress(x, nests, week); return { done: s.done + q.done, avail: s.avail + q.avail }; }, { done: 0, avail: 0 });
+    accSpan.textContent = `（${chars.length} 个角色 · ${week === S.config.currentWeekId ? '本周' : week} ${total.done}/${total.avail}）`;
+  }
+}
+// 批量勾选弹窗：同一角色多个副本
+function openBatchModal(cid){
+  const found = charById(cid); if (!found) return;
+  const c = found.char;
+  const nests = sortedNests(S.nestList.filter(n => n.enable && c.availableNestIds.includes(n.id)));
+  if (nests.length === 0){ toast('该角色没有可通关的启用副本'); return; }
+  const body = nests.map(n => {
+    const checked = getRec(c, n.id)?.c ? 'checked' : '';
+    return `<label><input type="checkbox" data-bnid="${n.id}" ${checked}> ${esc(n.name)}</label>`;
+  }).join('');
+  openModal(`批量设置通关 - ${esc(c.name)}`, `<div class="check-all">
+      <button type="button" class="btn xs" onclick="setAllChecks('[data-bnid]', true)">全选</button>
+      <button type="button" class="btn xs" onclick="setAllChecks('[data-bnid]', false)">全不选</button>
+      <span class="mut" style="font-size:12px">勾选即标记通关，取消即撤销记录</span>
+    </div>
+    <div class="checkbox-grid" style="max-height:300px">${body}</div>`, [
+    { text: '取消', cls: '', fn: closeModal },
+    { text: '确定', cls: 'primary', fn: () => {
+      $$('#modalBody [data-bnid]').forEach(cb => {
+        const nid = cb.dataset.bnid;
+        if (cb.checked) { if (!getRec(c, nid)?.c) setRec(c, nid, { c: true, t: new Date().toISOString() }); }
+        else setRec(c, nid, null);
+      });
+      markDirty(); closeModal();
+      // 局部刷新该角色所有单元格与计数，避免整表重建导致滚动位置丢失
+      const week = S.config.currentWeekId;
+      visibleNests().forEach(n => refreshCell(c.id, n.id, week));
+      refreshCounts(c.id, week);
+    }}
+  ]);
+}
+
+/* =====================================================================
+ * 管理页渲染
+ * ===================================================================== */
+let curMTab = 'account';
+$$('.manage-tabs button').forEach(b => b.addEventListener('click', () => {
+  curMTab = b.dataset.mtab;
+  $$('.manage-tabs button').forEach(x => x.classList.toggle('active', x === b));
+  ['account','char','nest','job'].forEach(t => $('#mtab-' + t).style.display = t === curMTab ? '' : 'none');
+  renderManage();
+}));
+
+function renderManage(){
+  if (curMTab === 'account') renderAccList();
+  else if (curMTab === 'char') renderCharList();
+  else if (curMTab === 'nest') renderNestList();
+  else renderJobList();
+}
+
+/* ---- 账号管理 ---- */
+function renderAccList(){
+  const el = $('#mtab-account');
+  let html = `<div class="toolbar"><button class="btn primary sm" onclick="openAccModal()">＋ 新增账号</button></div>`;
+  if (S.accountList.length === 0) html += `<div class="empty"><div class="icon">📁</div>暂无账号</div>`;
+  S.accountList.forEach(a => {
+    const cnt = (a.charList || []).length;
+    html += `<div class="list-item"><div class="info"><span class="name">📁 ${esc(a.name)}</span>
+      <span class="meta">${cnt} 个角色</span></div>
+      <div class="actions">
+        <button class="btn xs" onclick="openAccModal('${a.id}')">编辑</button>
+        <button class="btn xs danger" onclick="delAccount('${a.id}')">删除</button>
+      </div></div>`;
+  });
+  el.innerHTML = html;
+}
+function openAccModal(id){
+  const a = id ? accById(id) : null;
+  openModal(a ? '编辑账号' : '新增账号',
+    `<div class="form-row"><label>账号名称</label><input id="f_accName" value="${esc(a?.name || '')}" placeholder="请输入账号名称"></div>`,
+    [{ text:'取消', fn: closeModal },
+     { text:'保存', cls:'primary', fn: () => {
+       const name = $('#f_accName').value.trim();
+       if (!name) { toast('请输入账号名称'); return; }
+       if (a) a.name = name;
+       else S.accountList.push({ id: uid('acc'), name, charList: [] });
+       markDirty(); closeModal(); renderManage();
+     }}]);
+}
+function delAccount(id){
+  const a = accById(id); if (!a) return;
+  if (!confirm(`确定删除账号「${a.name}」吗？\n\n该账号下 ${(a.charList||[]).length} 个角色及其所有通关记录将一并删除，此操作不可恢复！`)) return;
+  S.accountList = S.accountList.filter(x => x.id !== id);
+  markDirty(); renderManage(); toast('账号已删除');
+}
+
+/* ---- 角色管理 ---- */
+function renderCharList(){
+  const el = $('#mtab-char');
+  let html = `<div class="toolbar">
+    <button class="btn primary sm" onclick="openCharModal()" ${S.accountList.length?'':'disabled'}>＋ 新增角色</button>
+    ${S.accountList.length?'':'<span class="mut">请先创建账号</span>'}
+    <select id="charFilterAcc" onchange="renderCharList()"><option value="">全部账号</option>
+      ${S.accountList.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
+    <label class="flex mut"><input type="checkbox" id="charShowArchived" onchange="renderCharList()"> 显示已归档</label>
+  </div>`;
+  const facc = $('#charFilterAcc')?.value || '';
+  const showA = $('#charShowArchived')?.checked || false;
+  let any = false;
+  S.accountList.forEach(a => {
+    if (facc && a.id !== facc) return;
+    (a.charList || []).forEach(c => {
+      if (!showA && !c.enable) return;
+      any = true;
+      const color = jobColor(c.jobId);
+      const nestNames = c.availableNestIds.map(nid => nestById(nid)?.name).filter(Boolean).join('、') || '无';
+      html += `<div class="list-item ${c.enable?'':'hidden-item'}"><div class="info">
+        <span class="job-dot" style="background:${color}"></span>
+        <span class="name" style="color:${color}">${esc(c.name)}</span>
+        <span class="tag">Lv.${c.level}</span>
+        <span class="tag">${esc(jobName(c.jobId))}</span>
+        ${c.subJobId ? `<span class="tag" style="color:${color};border-color:${color}">${esc(charJobName(c))}</span>` : ''}
+        <span class="tag">📁 ${esc(a.name)}</span>
+        <span class="meta">可通关：${esc(nestNames)}</span>
+        ${c.enable?'':'<span class="tag" style="color:var(--warn)">已归档</span>'}
+      </div><div class="actions">
+        <button class="btn xs" onclick="toggleArchiveChar('${c.id}')">${c.enable?'归档':'恢复'}</button>
+        <button class="btn xs" onclick="openCharModal('${c.id}')">编辑</button>
+        <button class="btn xs danger" onclick="delChar('${c.id}')">删除</button>
+      </div></div>`;
+    });
+  });
+  if (!any) html += `<div class="empty"><div class="icon">🧝</div>暂无角色</div>`;
+  el.innerHTML = html;
+  // 还原筛选状态
+  const sel2 = $('#charFilterAcc'); if (sel2 && facc) sel2.value = facc;
+  const cb2 = $('#charShowArchived'); if (cb2) cb2.checked = showA;
+}
+// 刷新角色弹窗中的二转职业下拉（根据所选 0 转职业动态生成）
+function refreshSubJobSelect(selectedSubId){
+  const jobId = $('#f_charJob').value;
+  const job = jobById(jobId);
+  const sel = $('#f_charSubJob');
+  const subs = (job && job.subs) || [];
+  sel.innerHTML = '<option value="">（不转职 / 未二转）</option>' +
+    subs.map(s => `<option value="${s.id}" ${s.id === selectedSubId ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
+}
+function openCharModal(cid){
+  const found = cid ? charById(cid) : null;
+  const c = found?.char;
+  const enabledNests = sortedNests(S.nestList.filter(n => n.enable));
+  const nestBoxes = enabledNests.length
+    ? enabledNests.map(n => `<label><input type="checkbox" data-nest="${n.id}" ${c?.availableNestIds.includes(n.id) ? 'checked' : ''}> ${esc(n.name)}<span class="mut">${n.size}人</span></label>`).join('')
+    : '<span class="mut">暂无启用副本，请先在副本管理中添加</span>';
+  const maxLv = S.config.maxLevel || 99;
+  openModal(c ? '编辑角色' : '新增角色', `
+    <div class="form-row"><label>所属账号</label>
+      <select id="f_charAcc" ${c ? 'disabled' : ''}>${S.accountList.map(a => `<option value="${a.id}" ${found?.acc.id===a.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select>
+    </div>
+    <div class="form-row"><label>角色名称</label><input id="f_charName" value="${esc(c?.name || '')}" placeholder="请输入角色名称"></div>
+    <div class="form-row"><label>等级（上限 ${maxLv}）</label><input id="f_charLevel" type="number" min="1" max="${maxLv}" value="${c?.level ?? S.config.defaultLevel ?? maxLv}"></div>
+    <div class="form-row"><label>职业（0转）</label>
+      <select id="f_charJob">${S.jobList.map(j => `<option value="${j.id}" ${c?.jobId===j.id?'selected':''}>${esc(j.name)}</option>`).join('')}</select>
+    </div>
+    <div class="form-row"><label>二转职业（可选）</label>
+      <select id="f_charSubJob"></select>
+    </div>
+    <div class="form-row"><label>可通关副本（勾选后该角色才可记录对应副本）</label>
+      <div class="check-all">
+        <button type="button" class="btn xs" onclick="setAllChecks('[data-nest]', true)">全选</button>
+        <button type="button" class="btn xs" onclick="setAllChecks('[data-nest]', false)">全不选</button>
+      </div>
+      <div class="checkbox-grid">${nestBoxes}</div>
+    </div>`,
+    [{ text:'取消', fn: closeModal },
+     { text:'保存', cls:'primary', fn: () => {
+       const name = $('#f_charName').value.trim();
+       // 等级限制在 1 ~ 等级上限之间
+       const level = Math.min(maxLv, Math.max(1, parseInt($('#f_charLevel').value) || (S.config.defaultLevel || 1)));
+       const jobId = $('#f_charJob').value;
+       const subJobId = $('#f_charSubJob').value || null;
+       const nestIds = $$('#modalBody [data-nest]:checked').map(x => x.dataset.nest);
+       if (!name) { toast('请输入角色名称'); return; }
+       if (!jobId) { toast('请先在职业配置中添加职业'); return; }
+       if (c) {
+         c.name = name; c.level = level; c.jobId = jobId; c.subJobId = subJobId; c.availableNestIds = nestIds;
+       } else {
+         const acc = accById($('#f_charAcc').value);
+         if (!acc) { toast('请选择账号'); return; }
+         acc.charList = acc.charList || [];
+         acc.charList.push({ id: uid('c'), name, level, jobId, subJobId, enable: true, availableNestIds: nestIds, weeklyRecord: {} });
+       }
+       markDirty(); closeModal(); renderManage();
+     }}]);
+  // 初始化二转下拉，并绑定 0 转职业切换联动
+  refreshSubJobSelect(c?.subJobId || null);
+  $('#f_charJob').addEventListener('change', () => refreshSubJobSelect(null));
+}
+function toggleArchiveChar(cid){
+  const found = charById(cid); if (!found) return;
+  found.char.enable = !found.char.enable;
+  markDirty(); renderManage();
+  toast(found.char.enable ? '角色已恢复' : '角色已归档（数据保留，仅隐藏展示）');
+}
+function delChar(cid){
+  const found = charById(cid); if (!found) return;
+  if (!confirm(`确定删除角色「${found.char.name}」吗？\n\n该角色的所有通关记录将一并删除，此操作不可恢复！`)) return;
+  found.acc.charList = found.acc.charList.filter(x => x.id !== cid);
+  markDirty(); renderManage(); toast('角色已删除');
+}
+
+/* ---- 副本管理 ---- */
+function renderNestList(){
+  const el = $('#mtab-nest');
+  let html = `<div class="toolbar"><button class="btn primary sm" onclick="openNestModal()">＋ 新增副本</button>
+    <span class="mut">拖动行首 ⠿ 可调整顺序；总览与统计页均按此顺序展示（优先级仅作标记）</span></div>`;
+  if (S.nestList.length === 0) html += `<div class="empty"><div class="icon">🕳️</div>暂无副本</div>`;
+  sortedNests(S.nestList).forEach(n => {
+    // 统计可通关该副本的角色数
+    let cnt = 0;
+    S.accountList.forEach(a => (a.charList||[]).forEach(c => { if (c.availableNestIds.includes(n.id)) cnt++; }));
+    const priTag = n.priority === 'high' ? `<span class="tag tag-pri">🔥 高悬赏</span>` : (n.priority === 'mid' ? `<span class="tag tag-mid">⭐ 中悬赏</span>` : '');
+    html += `<div class="list-item ${n.enable?'':'hidden-item'}" data-nestid="${n.id}"><div class="info">
+      <span class="drag-handle" title="按住拖动调整顺序">⠿</span>
+      <span class="name">🕳️ ${esc(n.name)}</span>
+      <span class="tag">${n.size}人</span>
+      ${priTag}
+      <span class="meta">${cnt} 个角色可通关</span>
+      ${n.enable?'':'<span class="tag" style="color:var(--warn)">已停用</span>'}
+    </div><div class="actions">
+      <div class="switch ${n.enable?'on':''}" title="启用/停用" onclick="toggleNest('${n.id}')"></div>
+      <button class="btn xs" onclick="openNestModal('${n.id}')">编辑</button>
+      <button class="btn xs danger" onclick="delNest('${n.id}')">删除</button>
+    </div></div>`;
+  });
+  el.innerHTML = html;
+  bindNestDrag(el);
+}
+// 绑定副本列表拖拽排序：用鼠标事件自行实现，避免 WebView2 拦截原生 HTML5 拖放
+function bindNestDrag(box){
+  box.querySelectorAll('.drag-handle').forEach(handle => {
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault();
+      const src = handle.closest('[data-nestid]');
+      if (!src) return;
+      let moved = false;
+      src.classList.add('drag-src');
+      document.body.style.userSelect = 'none';
+
+      const onMove = ev => {
+        const items = [...box.querySelectorAll('[data-nestid]')];
+        const target = items.find(it => {
+          if (it === src) return false;
+          const r = it.getBoundingClientRect();
+          return ev.clientY >= r.top && ev.clientY <= r.bottom;
+        });
+        if (!target) return;
+        const r = target.getBoundingClientRect();
+        if (ev.clientY > r.top + r.height / 2) target.parentNode.insertBefore(src, target.nextSibling);
+        else target.parentNode.insertBefore(src, target);
+        moved = true;
+        box.querySelectorAll('.drag-over').forEach(x => x.classList.remove('drag-over'));
+        target.classList.add('drag-over');
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        src.classList.remove('drag-src');
+        box.querySelectorAll('.drag-over').forEach(x => x.classList.remove('drag-over'));
+        document.body.style.userSelect = '';
+        if (!moved) return;
+        // 按当前 DOM 顺序写回 order
+        [...box.querySelectorAll('[data-nestid]')].forEach((el, i) => {
+          const n = nestById(el.dataset.nestid); if (n) n.order = i;
+        });
+        markDirty(); renderNestList(); toast('副本顺序已更新');
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp, { once: true });
+    });
+  });
+}
+// 把 fromId 移到 toId 的前面/后面，并重排所有副本的 order
+function moveNestTo(fromId, toId, after){
+  const ordered = sortedNests(S.nestList).map(n => n.id);
+  const from = ordered.indexOf(fromId);
+  if (from < 0 || ordered.indexOf(toId) < 0) return;
+  ordered.splice(from, 1);
+  let idx = ordered.indexOf(toId);
+  ordered.splice(after ? idx + 1 : idx, 0, fromId);
+  ordered.forEach((id, i) => { const n = nestById(id); if (n) n.order = i; });
+  markDirty(); renderNestList();
+  toast('副本顺序已更新');
+}
+function openNestModal(id){
+  const n = id ? nestById(id) : null;
+  const curPri = n?.priority || 'low';
+  // 列出全部角色：新建副本时默认全部勾选，编辑时按各角色现有配置回显
+  const charBoxes = S.accountList.length
+    ? S.accountList.map(a => (a.charList || []).map(c => {
+        const checked = n ? c.availableNestIds.includes(n.id) : true;
+        return `<label><input type="checkbox" data-nid="${c.id}" ${checked ? 'checked' : ''}> ${esc(c.name)}<span class="mut">${esc(a.name)}</span></label>`;
+      }).join('')).join('')
+    : '<span class="mut">暂无角色，可先到「角色管理」添加</span>';
+  openModal(n ? '编辑副本' : '新增副本',
+    `<div class="form-row"><label>副本名称</label><input id="f_nestName" value="${esc(n?.name || '')}" placeholder="如：红龙副本"></div>
+    <div class="form-row"><label>副本规模（人数）</label>
+      <select id="f_nestSize">
+        <option value="1" ${(n?.size ?? 4) == 1 ? 'selected' : ''}>1人副本</option>
+        <option value="2" ${(n?.size ?? 4) == 2 ? 'selected' : ''}>2人副本</option>
+        <option value="4" ${(n?.size ?? 4) == 4 ? 'selected' : ''}>4人副本</option>
+        <option value="8" ${(n?.size ?? 4) == 8 ? 'selected' : ''}>8人副本</option>
+      </select>
+    </div>
+    <div class="form-row"><label>悬赏优先级（仅作标记，展示顺序由副本列表拖动决定）</label>
+      <select id="f_nestPriority">
+        <option value="high" ${curPri === 'high' ? 'selected' : ''}>🔥 高悬赏</option>
+        <option value="mid" ${curPri === 'mid' ? 'selected' : ''}>⭐ 中悬赏</option>
+        <option value="low" ${curPri === 'low' ? 'selected' : ''}>普通（低悬赏）</option>
+      </select>
+    </div>
+    <div class="form-row"><label>可通关角色（勾选表示该角色可以通关本副本）</label>
+      <div class="check-all">
+        <button type="button" class="btn xs" onclick="setAllChecks('[data-nid]', true)">全选</button>
+        <button type="button" class="btn xs" onclick="setAllChecks('[data-nid]', false)">全不选</button>
+        <span class="mut" style="font-size:12px">新建时默认全部勾选</span>
+      </div>
+      <div class="checkbox-grid">${charBoxes}</div>
+    </div>`,
+    [{ text:'取消', fn: closeModal },
+     { text:'保存', cls:'primary', fn: () => {
+       const name = $('#f_nestName').value.trim();
+       const size = [1,2,4,8].includes(parseInt($('#f_nestSize').value)) ? parseInt($('#f_nestSize').value) : 4;
+       const priority = ['high','mid','low'].includes($('#f_nestPriority').value) ? $('#f_nestPriority').value : 'low';
+       if (!name) { toast('请输入副本名称'); return; }
+       let nestId;
+       if (n) { n.name = name; n.size = size; n.priority = priority; nestId = n.id; }
+       else {
+         const maxOrder = S.nestList.reduce((m, x) => Math.max(m, typeof x.order === 'number' ? x.order : -1), -1);
+         const nn = { id: uid('n'), name, enable: true, size, priority, order: maxOrder + 1 };
+         S.nestList.push(nn); nestId = nn.id;
+       }
+       // 按勾选结果同步每个角色的「可通关副本」配置
+       const picked = new Set($$('#modalBody [data-nid]:checked').map(x => x.dataset.nid));
+       S.accountList.forEach(a => (a.charList || []).forEach(c => {
+         c.availableNestIds = c.availableNestIds || [];
+         if (picked.has(c.id)) { if (!c.availableNestIds.includes(nestId)) c.availableNestIds.push(nestId); }
+         else c.availableNestIds = c.availableNestIds.filter(x => x !== nestId);
+       }));
+       markDirty(); closeModal(); renderManage();
+       toast(n ? '副本已更新' : '副本已创建');
+     }}]);
+}
+function toggleNest(id){
+  const n = nestById(id); if (!n) return;
+  n.enable = !n.enable;
+  markDirty(); renderManage();
+  toast(n.enable ? '副本已启用' : '副本已停用（配置保留，总览中默认隐藏）');
+}
+function delNest(id){
+  const n = nestById(id); if (!n) return;
+  if (!confirm(`确定删除副本「${n.name}」吗？\n\n⚠️ 删除后将清除所有角色对该副本的可通关配置及全部历史通关记录，此操作不可恢复！`)) return;
+  S.nestList = S.nestList.filter(x => x.id !== id);
+  S.accountList.forEach(a => (a.charList||[]).forEach(c => {
+    c.availableNestIds = c.availableNestIds.filter(x => x !== id);
+    Object.keys(c.weeklyRecord).forEach(w => { delete c.weeklyRecord[w][id]; });
+  }));
+  markDirty(); renderManage(); toast('副本已删除，相关记录已清除');
+}
+
+/* ---- 职业配置 ---- */
+function renderJobList(){
+  const el = $('#mtab-job');
+  let html = `<div class="toolbar"><button class="btn primary sm" onclick="openJobModal()">＋ 新增职业</button>
+    <button class="btn sm warn" onclick="restoreDefaultJobs()">🔄 恢复默认职业</button>
+    <span class="mut">0转职业颜色用于角色名称显示；二转职业从属于 0转职业</span></div>`;
+  if (S.jobList.length === 0) html += `<div class="empty"><div class="icon">🎨</div>暂无职业</div>`;
+  S.jobList.forEach(j => {
+    let cnt = 0;
+    S.accountList.forEach(a => (a.charList||[]).forEach(c => { if (c.jobId === j.id) cnt++; }));
+    const subTags = (j.subs || []).map(s => `<span class="subjob-tag">${esc(s.name)}</span>`).join('');
+    html += `<div class="list-item"><div class="info">
+      <span class="job-dot" style="background:${j.color};width:16px;height:16px"></span>
+      <span class="name" style="color:${j.color}">${esc(j.name)}</span>
+      <span class="meta">${cnt} 个角色</span>
+      ${subTags ? `<span class="mut">二转：</span>${subTags}` : ''}
+    </div><div class="actions">
+      <button class="btn xs" onclick="openJobModal('${j.id}')">编辑</button>
+      <button class="btn xs danger" onclick="delJob('${j.id}')">删除</button>
+    </div></div>`;
+  });
+  el.innerHTML = html;
+}
+// 职业弹窗中的二转编辑器：动态增删输入行
+function addSubJobRow(name){
+  const wrap = $('#subJobList');
+  const row = document.createElement('div');
+  row.className = 'subjob-row';
+  row.innerHTML = `<input placeholder="二转职业名称，如：狂战士" value="${esc(name || '')}"><button type="button" class="btn xs danger">删除</button>`;
+  row.querySelector('button').addEventListener('click', () => row.remove());
+  wrap.appendChild(row);
+}
+function openJobModal(id){
+  const j = id ? jobById(id) : null;
+  openModal(j ? '编辑职业' : '新增职业', `
+    <div class="form-row"><label>职业名称（0转）</label><input id="f_jobName" value="${esc(j?.name || '')}" placeholder="如：战士"></div>
+    <div class="form-row"><label>显示颜色</label><input id="f_jobColor" type="color" value="${j?.color || '#3b82f6'}"></div>
+    <div class="form-row"><label>二转职业列表</label>
+      <div id="subJobList"></div>
+      <button type="button" class="btn xs" id="btnAddSubJob">＋ 添加二转职业</button>
+    </div>`,
+    [{ text:'取消', fn: closeModal },
+     { text:'保存', cls:'primary', fn: () => {
+       const name = $('#f_jobName').value.trim();
+       const color = $('#f_jobColor').value;
+       if (!name) { toast('请输入职业名称'); return; }
+       // 读取二转行，过滤空名称并去重
+       const subNames = $$('#subJobList input').map(x => x.value.trim()).filter(Boolean);
+       const uniqueNames = [...new Set(subNames)];
+       const oldSubs = (j && j.subs) || [];
+       // 尽量保留原有二转的 id，保证角色 subJobId 引用不失效
+       const subs = uniqueNames.map(nm => {
+         const old = oldSubs.find(s => s.name === nm);
+         return old ? old : { id: uid('s'), name: nm };
+       });
+       // 被移除的二转：清空引用它的角色
+       const removedIds = oldSubs.filter(s => !subs.some(x => x.id === s.id)).map(s => s.id);
+       if (removedIds.length){
+         S.accountList.forEach(a => (a.charList||[]).forEach(c => {
+           if (c.jobId === (j?.id) && removedIds.includes(c.subJobId)) c.subJobId = null;
+         }));
+       }
+       if (j) { j.name = name; j.color = color; j.subs = subs; }
+       else S.jobList.push({ id: uid('j'), name, color, subs });
+       markDirty(); closeModal(); renderManage();
+     }}]);
+  // 填充已有二转并绑定添加按钮
+  (j?.subs || []).forEach(s => addSubJobRow(s.name));
+  $('#btnAddSubJob').addEventListener('click', () => addSubJobRow(''));
+}
+function delJob(id){
+  const j = jobById(id); if (!j) return;
+  let cnt = 0;
+  S.accountList.forEach(a => (a.charList||[]).forEach(c => { if (c.jobId === id) cnt++; }));
+  if (cnt > 0) { toast(`无法删除：仍有 ${cnt} 个角色使用该职业`); return; }
+  if (!confirm(`确定删除职业「${j.name}」吗？`)) return;
+  S.jobList = S.jobList.filter(x => x.id !== id);
+  markDirty(); renderManage(); toast('职业已删除');
+}
+// 恢复默认职业：替换为龙之谷怀旧服 0 转职业体系（含二转）
+function restoreDefaultJobs(){
+  if (!confirm('确定恢复默认职业列表吗？\n\n将删除当前所有自定义职业，替换为怀旧服默认的六大 0 转职业（含二转）。\n⚠️ 已创建角色的职业将变为「未设置」，需要重新编辑角色选择职业。')) return;
+  S.jobList = defaultJobList();
+  S.accountList.forEach(a => (a.charList||[]).forEach(c => { c.jobId = null; c.subJobId = null; }));
+  markDirty(); renderManage(); toast('已恢复默认职业列表，请为角色重新选择职业');
+}
+
+/* =====================================================================
+ * 统计页渲染
+ * ===================================================================== */
+function allWeekIds(){
+  const set = new Set([S.config.currentWeekId]);
+  S.accountList.forEach(a => (a.charList||[]).forEach(c => Object.keys(c.weeklyRecord).forEach(w => set.add(w))));
+  (S.lootList || []).forEach(l => { if (l.weekId) set.add(l.weekId); });
+  return Array.from(set).sort().reverse(); // 新周在前
+}
+// 周ID → 该周周一日期（用于推算上一周）
+function weekStartDate(weekId){
+  const m = /^(\d{4})-W(\d{1,2})$/.exec(weekId || ''); if (!m) return null;
+  const y = +m[1], w = +m[2];
+  const jan4 = new Date(y, 0, 4);
+  const jan4Day = jan4.getDay() || 7;
+  return new Date(y, 0, 4 - (jan4Day - 1) + (w - 1) * 7);
+}
+// 上一周（自然周）的周ID
+function prevWeekOf(weekId){
+  const d = weekStartDate(weekId); if (!d) return null;
+  d.setDate(d.getDate() - 7);
+  return isoWeekId(d);
+}
+// 涨跌徽标：diff 为百分比差值（百分点）
+function deltaBadge(diff, suffix = '%'){
+  if (!Number.isFinite(diff)) return '';
+  if (diff > 0) return `<span class="delta up">▲ ${diff}${suffix}</span>`;
+  if (diff < 0) return `<span class="delta down">▼ ${Math.abs(diff)}${suffix}</span>`;
+  return `<span class="delta same">持平</span>`;
+}
+// 收益统计：按自己的角色汇总分红所得（所选周 + 累计）
+function incomeByChar(week){
+  const idx = {};
+  S.accountList.forEach(a => (a.charList || []).forEach(c => { idx[c.id] = { accName: a.name, charName: c.name, color: jobColor(c.jobId) }; }));
+  const map = {};
+  (S.lootList || []).forEach(l => (l.participants || []).forEach(p => {
+    if (!p.selfCharId) return;
+    const known = idx[p.selfCharId];
+    const m = map[p.selfCharId] || (map[p.selfCharId] = {
+      id: p.selfCharId,
+      accName: known ? known.accName : '（已删除）',
+      charName: known ? known.charName : (p.selfCharName || '已删除角色'),
+      color: known ? known.color : 'var(--text-3)',
+      week: 0, paid: 0, unpaid: 0, all: 0, records: 0
+    });
+    const amt = p.amount || 0;
+    if (l.weekId === week){
+      m.week += amt;
+      m.records++;
+      if (p.paid) m.paid += amt; else m.unpaid += amt;
+    }
+    m.all += amt;
+  }));
+  // 没有分红记录的角色也列出，便于对照
+  S.accountList.forEach(a => (a.charList || []).forEach(c => {
+    if (map[c.id]) return;
+    map[c.id] = { id: c.id, accName: a.name, charName: c.name, color: jobColor(c.jobId), week: 0, paid: 0, unpaid: 0, all: 0, records: 0 };
+  }));
+  return Object.values(map).sort((x, y) => y.week - x.week || y.all - x.all);
+}
+// 收益统计：把角色的分红按账号汇总
+function incomeByAccount(week){
+  const map = {};
+  S.accountList.forEach(a => { map[a.name] = { accName: a.name, week: 0, paid: 0, unpaid: 0, all: 0, records: 0, chars: (a.charList || []).length }; });
+  incomeByChar(week).forEach(r => {
+    const m = map[r.accName] || (map[r.accName] = { accName: r.accName, week: 0, paid: 0, unpaid: 0, all: 0, records: 0, chars: 0 });
+    m.week += r.week; m.paid += r.paid; m.unpaid += r.unpaid; m.all += r.all; m.records += r.records;
+  });
+  return Object.values(map).sort((x, y) => y.week - x.week || y.all - x.all);
+}
+function renderStats(){
+  const weekSel = $('#statsWeek');
+  const weeks = allWeekIds();
+  const curVal = weekSel.value || S.config.currentWeekId;
+  weekSel.innerHTML = weeks.map(w => `<option value="${w}">${w}${w===S.config.currentWeekId?'（本周）':''}</option>`).join('');
+  weekSel.value = weeks.includes(curVal) ? curVal : S.config.currentWeekId;
+  const week = weekSel.value;
+  const dim = document.querySelector('#statsDimTabs button.active')?.dataset.dim || 'account';
+  const body = $('#statsBody');
+  const enabledNests = sortedNests(S.nestList.filter(n => n.enable));
+  // 上周对比：仅当所选周的上一周已在数据中存在时展示，避免拿空白周做对比
+  const prevWeek = prevWeekOf(week);
+  const hasPrev = !!prevWeek && weeks.includes(prevWeek);
+
+  if (dim === 'account'){
+    // 按账号统计：每个账号本周完成数/可完成数
+    let html = '<div class="stats-grid">';
+    S.accountList.forEach(a => {
+      let total = 0, done = 0, bDone = 0, bChars = 0;
+      let pTotal = 0, pDone = 0;
+      (a.charList||[]).forEach(c => {
+        if (!c.enable) return;
+        bChars++;
+        bDone += (c.bounty?.[week]?.done || 0);
+        c.availableNestIds.forEach(nid => {
+          if (!enabledNests.some(n => n.id === nid)) return;
+          total++;
+          if (c.weeklyRecord[week]?.[nid]?.c) done++;
+          if (hasPrev){
+            pTotal++;
+            if (c.weeklyRecord[prevWeek]?.[nid]?.c) pDone++;
+          }
+        });
+      });
+      const pct = total ? Math.round(done / total * 100) : 0;
+      const pPct = pTotal ? Math.round(pDone / pTotal * 100) : 0;
+      const cmp = hasPrev ? `<div class="mut" style="margin-top:6px;font-size:12px">较上周 ${deltaBadge(pct - pPct)} <span class="mut">（${pDone}/${pTotal} · ${pPct}%）</span></div>` : '';
+      html += `<div class="stat-card"><div class="title">📁 ${esc(a.name)}</div>
+        <div class="progress-ring"><div class="ring" style="--p:${pct}"><span>${pct}%</span></div>
+        <div><div style="font-size:22px;font-weight:700">${done}<span class="mut">/${total}</span></div>
+        <div class="mut">${bChars} 个角色</div></div></div>
+        <div class="mut" style="margin-top:10px;font-size:12px">🎯 悬赏 ${bDone}/${bChars * 6} 次</div>${cmp}</div>`;
+    });
+    body.innerHTML = S.accountList.length ? html + '</div>' : '<div class="empty"><div class="icon">📈</div>暂无账号数据</div>';
+  }
+  else if (dim === 'char'){
+    // 按角色统计：表格展示
+    let html = `<div class="tbl-wrap"><table><thead><tr><th>账号</th><th>角色</th><th class="col-sep">职业</th><th class="num">悬赏</th>${enabledNests.map(n=>`<th class="num">${esc(n.name)}</th>`).join('')}<th class="num">完成率</th></tr></thead><tbody>`;
+    let any = false;
+    S.accountList.forEach(a => (a.charList||[]).forEach(c => {
+      if (!c.enable) return; any = true;
+      let total = 0, done = 0, pTotal = 0, pDone = 0;
+      const b = c.bounty?.[week];
+      const bDone = b?.done || 0;
+      const bDetail = Object.entries(b?.nests || {}).map(([nid, ok]) => {
+        const nn = nestById(nid); if (!nn) return '';
+        const fl = b.flags?.[nid] || {};
+        const fs = [fl.g?'同会':'', fl.t?'限时':''].filter(Boolean).join('/');
+        return `${nn.name}${fl.lv?`[${fl.lv}]`:''}${ok?'✓':'○'}${fs?'['+fs+']':''}`;
+      }).filter(Boolean).join('、');
+      html += `<tr><td>${esc(a.name)}</td>
+        <td><span class="job-dot" style="background:${jobColor(c.jobId)}"></span><b style="color:${jobColor(c.jobId)}">${esc(c.name)}</b></td>
+        <td class="col-sep">${esc(charJobName(c))}</td>
+        <td class="num" title="${esc(bDetail || '本周未设置悬赏')}"><b style="color:${bDone>=6?'var(--success)':'var(--text)'}">${bDone}/6</b></td>`;
+      enabledNests.forEach(n => {
+        if (c.availableNestIds.includes(n.id)){
+          total++;
+          const ok = c.weeklyRecord[week]?.[n.id]?.c;
+          if (ok) done++;
+          if (hasPrev){
+            pTotal++;
+            if (c.weeklyRecord[prevWeek]?.[n.id]?.c) pDone++;
+          }
+          html += `<td class="num"><span class="stat-check${ok?' ok':''}">✓</span></td>`;
+        } else html += `<td class="num" style="opacity:.3">—</td>`;
+      });
+      const pct = total ? Math.round(done/total*100) : 0;
+      const pPct = pTotal ? Math.round(pDone/pTotal*100) : 0;
+      const cmp = hasPrev ? ` <span class="mut" style="font-size:11px">（${deltaBadge(pct - pPct)}）</span>` : '';
+      html += `<td class="num"><b style="color:${pct===100?'var(--success)':'var(--text)'}">${done}/${total} (${pct}%)</b>${cmp}</td></tr>`;
+    }));
+    html += '</tbody></table></div>';
+    body.innerHTML = any ? html : '<div class="empty"><div class="icon">📈</div>暂无角色数据</div>';
+  }
+  else if (dim === 'charIncome' || dim === 'accountIncome'){
+    // 收益统计：所选周收益最高者加称号（角色=运气王，账号=欧皇）
+    const isAcc = dim === 'accountIncome';
+    if (!(S.lootList || []).length){
+      body.innerHTML = '<div class="empty"><div class="icon">💰</div>暂无分红记录，先到「分红」页记一笔</div>';
+      return;
+    }
+    const rows = isAcc ? incomeByAccount(week) : incomeByChar(week);
+    const maxWeek = Math.max(0, ...rows.map(r => r.week));
+    let html = `<div class="mut" style="margin-bottom:8px;font-size:12px">收益为分红所得（含待分红，不含未售出物品）；「${isAcc ? '欧皇' : '运气王'}」为所选周 ${week} 收益最高的${isAcc ? '账号' : '角色'}</div>`;
+    html += '<div class="tbl-wrap"><table><thead><tr>';
+    html += isAcc ? '<th>账号</th><th class="num">角色数</th>' : '<th>账号</th><th>角色</th>';
+    html += '<th class="num">所选周收益</th><th class="num">已收</th><th class="num">待收</th><th class="num">累计收益</th><th class="num">分成次数</th></tr></thead><tbody>';
+    rows.forEach(r => {
+      const king = maxWeek > 0 && r.week === maxWeek ? `<span class="loot-king ${isAcc ? 'ou' : ''}">${isAcc ? '欧皇' : '运气王'}</span>` : '';
+      html += isAcc
+        ? `<tr><td>${esc(r.accName)}${king}</td><td class="num">${r.chars}</td>`
+        : `<tr><td>${esc(r.accName)}</td><td><span class="job-dot" style="background:${r.color}"></span><b style="color:${r.color}">${esc(r.charName)}</b>${king}</td>`;
+      html += `<td class="num"><b>${fmtGold(r.week)}</b></td>
+        <td class="num">${fmtGold(r.paid)}</td>
+        <td class="num">${r.unpaid ? `<span class="loot-diff">${fmtGold(r.unpaid)}</span>` : '0'}</td>
+        <td class="num">${fmtGold(r.all)}</td>
+        <td class="num">${r.records}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+    body.innerHTML = html;
+  }
+  else {
+    // 按副本统计：每个副本已通关/可通关角色数 + 角色明细条（按优先级降序排列）
+    let html = '<div class="stats-grid">';
+    enabledNests.forEach(n => {
+      let total = 0, done = 0; const rows = [];
+      S.accountList.forEach(a => (a.charList||[]).forEach(c => {
+        if (!c.enable || !c.availableNestIds.includes(n.id)) return;
+        total++;
+        const ok = c.weeklyRecord[week]?.[n.id]?.c;
+        if (ok) done++;
+        rows.push({ name: c.name, color: jobColor(c.jobId), ok });
+      }));
+      const pct = total ? Math.round(done/total*100) : 0;
+      // 上周同副本完成率
+      let pTotal = 0, pDone = 0;
+      if (hasPrev) S.accountList.forEach(a => (a.charList||[]).forEach(c => {
+        if (!c.enable || !c.availableNestIds.includes(n.id)) return;
+        pTotal++;
+        if (c.weeklyRecord[prevWeek]?.[n.id]?.c) pDone++;
+      }));
+      const pPct = pTotal ? Math.round(pDone/pTotal*100) : 0;
+      const cmp = hasPrev ? ` <span class="mut" style="font-size:11px">（${deltaBadge(pct - pPct)}）</span>` : '';
+      const priTag = n.priority === 'high' ? `<span class="tag tag-pri">🔥高悬赏</span>` : (n.priority === 'mid' ? `<span class="tag tag-mid">⭐中悬赏</span>` : '');
+      html += `<div class="stat-card"><div class="title">🕳️ ${esc(n.name)} <span class="tag">${n.size}人</span>${priTag}<span class="right mut">${done}/${total} (${pct}%)${cmp}</span></div>
+        <div class="bar-row"><div class="bar" style="flex:1"><i style="width:${pct}%"></i></div></div>
+        ${rows.map(r => `<div class="bar-row"><span class="job-dot" style="background:${r.color}"></span>
+          <span class="lbl" style="color:${r.color}">${esc(r.name)}</span>
+          <span class="stat-check${r.ok?' ok':''}" style="margin-left:auto">✓</span></div>`).join('')}
+      </div>`;
+    });
+    body.innerHTML = enabledNests.length ? html + '</div>' : '<div class="empty"><div class="icon">📈</div>暂无副本数据</div>';
+  }
+  fitTables();
+}
+$('#statsWeek').addEventListener('change', renderStats);
+// 统计维度按钮组切换
+$$('#statsDimTabs button').forEach(b => b.addEventListener('click', () => {
+  $$('#statsDimTabs button').forEach(x => x.classList.toggle('active', x === b));
+  renderStats();
+}));
+
+/* =====================================================================
+ * 分红页：产出记账 + 封印成本 + 分红结清
+ * ===================================================================== */
+let lootModalTaker = null;   // 弹窗中「拿物品的人」的参与者 id
+let lootModalSealUnit = 0;   // 弹窗中生效的封印单价（新建取设置，编辑取记录快照）
+
+function todayStr(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+// 金币千分位显示
+function fmtGold(n){
+  return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+// 单件物品的封印成本
+function itemSealCost(it){ return Math.max(0, (it.sealCount || 0) * (it.sealUnitPrice || 0)); }
+// 汇总一条记录：已售收入、封印成本、未售件数
+function lootTotals(l){
+  let sold = 0, seal = 0, unsold = 0;
+  (l.items || []).forEach(it => {
+    if ((it.price || 0) > 0){ sold += it.price; seal += itemSealCost(it); }
+    else unsold++;
+  });
+  return { sold, seal, net: Math.max(0, sold - seal), unsold };
+}
+function lootSettled(l){ return (l.participants || []).length > 0 && l.participants.every(p => p.paid); }
+function lootById(id){ return (S.lootList || []).find(l => l.id === id); }
+function myCharList(){
+  const out = [];
+  S.accountList.forEach(a => (a.charList || []).forEach(c => out.push({ id: c.id, name: c.name, acc: a.name })));
+  return out;
+}
+
+function renderLoot(){
+  if (!S) return;
+  const oldScroll = $('#lootBody .tbl-wrap')?.scrollTop || 0;
+  const weekSel = $('#lootWeek');
+  const weeks = allWeekIds();
+  const curVal = weekSel.value || S.config.currentWeekId;
+  weekSel.innerHTML = weeks.map(w => `<option value="${w}">${w}${w===S.config.currentWeekId?'（本周）':''}</option>`).join('');
+  weekSel.value = weeks.includes(curVal) ? curVal : S.config.currentWeekId;
+  const week = weekSel.value;
+  const kw = $('#lootSearch').value.trim().toLowerCase();
+  const status = $('#lootFilter').value;
+
+  const weekList = S.lootList.filter(l => l.weekId === week);
+  let totalSold = 0, totalSeal = 0, unsoldCnt = 0;
+  weekList.forEach(l => { const t = lootTotals(l); totalSold += t.sold; totalSeal += t.seal; unsoldCnt += t.unsold; });
+  const totalNet = Math.max(0, totalSold - totalSeal);
+  let paidSum = 0, unpaidSum = 0;
+  weekList.forEach(l => (l.participants||[]).forEach(p => { const a = p.amount || 0; p.paid ? paidSum += a : unpaidSum += a; }));
+
+  const cells = [
+    ['记录数', String(weekList.length), ''],
+    ['已售出收入', fmtGold(totalSold), 'gold'],
+    ['封印成本', fmtGold(totalSeal), ''],
+    ['可分红净额', fmtGold(totalNet), 'pri'],
+    ['已分红', fmtGold(paidSum), ''],
+    ['待分红', fmtGold(unpaidSum), unpaidSum > 0 ? 'gold' : ''],
+    ['未售出物品', String(unsoldCnt), unsoldCnt ? 'gold' : '']
+  ];
+  $('#lootSum').innerHTML = cells.map(([k,v,cls]) => `<div class="cell"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`).join('');
+
+  // 我的收益：按自己绑定的角色聚合
+  const mine = {};
+  S.lootList.forEach(l => {
+    const t = lootTotals(l);
+    (l.participants || []).forEach(p => {
+      if (!p.selfCharId) return;
+      const m = mine[p.selfCharId] || (mine[p.selfCharId] = { name: p.selfCharName || '已删除角色', paid: 0, unpaid: 0, all: 0, seal: 0 });
+      const a = p.amount || 0;
+      if (l.weekId === week) { if (p.paid) m.paid += a; else m.unpaid += a; }
+      if (p.paid) m.all += a;
+      if (l.takerId === p.id) m.seal += t.seal;
+    });
+  });
+  const mineRows = Object.values(mine);
+  $('#lootMyIncome').innerHTML = mineRows.length ? `
+    <div class="mut" style="font-weight:600;color:var(--text)">我的收益 · ${week}</div>
+    <div class="tbl-wrap"><table><thead><tr>
+      <th>我的角色</th><th class="num">已收</th><th class="num">待收</th><th class="num">累计已收</th><th class="num">垫付封印</th>
+    </tr></thead><tbody>
+    ${mineRows.map(m => `<tr>
+      <td>${esc(m.name)}</td>
+      <td class="num">${fmtGold(m.paid)}</td>
+      <td class="num">${m.unpaid ? `<span class="loot-diff">${fmtGold(m.unpaid)}</span>` : '0'}</td>
+      <td class="num">${fmtGold(m.all)}</td>
+      <td class="num">${fmtGold(m.seal)}</td>
+    </tr>`).join('')}
+    </tbody></table></div>` : '';
+
+  const list = weekList
+    .filter(l => !status || (status === 'done' ? lootSettled(l) : !lootSettled(l)))
+    .filter(l => {
+      if (!kw) return true;
+      const names = (l.participants || []).map(p => p.name).join(' ');
+      const items = (l.items || []).map(it => it.name).join(' ');
+      return (items + ' ' + (l.nestName || '') + ' ' + names).toLowerCase().includes(kw);
+    })
+    .sort((a,b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+  $('#lootCount').textContent = `${list.length} 条记录`;
+
+  if (!list.length){
+    $('#lootBody').innerHTML = `<div class="empty"><div class="icon">📦</div>${weekList.length ? '没有符合筛选条件的记录' : '本周暂无产出记录，点击右上角「+ 记录产出」开始记账'}</div>`;
+    return;
+  }
+
+  const rows = list.map(l => {
+    const ps = l.participants || [];
+    const n = ps.length;
+    const t = lootTotals(l);
+    const per = n ? Math.floor(t.net / n) : 0;
+    const done = lootSettled(l);
+    const paidCnt = ps.filter(p => p.paid).length;
+    const itemsHtml = (l.items || []).map(it => it.price > 0
+      ? `<div class="loot-item-line">${esc(it.name)}<span class="mut loot-price" onclick="quickEditLootItem('${l.id}','${it.id}')" title="点击修改卖出价格">${fmtGold(it.price)} · ${esc(it.soldAt || '')}</span></div>`
+      : `<div class="loot-item-line">${esc(it.name)}<span class="loot-diff loot-price" onclick="quickEditLootItem('${l.id}','${it.id}')" title="点击填写卖出价格">未售出</span></div>`
+    ).join('');
+    const tags = ps.map(p =>
+      `<span class="loot-tag ${p.paid ? 'paid' : ''}" onclick="toggleLootPaid('${l.id}','${p.id}')" title="点击切换已分红状态">${esc(p.name)}${p.selfCharId ? '<span class="who">我</span>' : ''} ${p.paid ? '✓' : '待付'}</span>`
+    ).join('');
+    return `<tr>
+      <td>${esc(l.date || '')}</td>
+      <td>${esc(l.nestName || '')}</td>
+      <td class="loot-items">${itemsHtml}</td>
+      <td class="num">${t.sold ? fmtGold(t.sold) : '—'}</td>
+      <td class="num">${t.seal ? fmtGold(t.seal) : '—'}</td>
+      <td class="num">${fmtGold(t.net)}</td>
+      <td class="num">${fmtGold(per)}</td>
+      <td class="loot-participants">${tags}</td>
+      <td class="num">${done ? '<span class="tag">已结清</span>' : `<span class="tag tag-mid">待结清 ${paidCnt}/${n}</span>`}</td>
+      <td class="num" style="white-space:nowrap">
+        <button class="btn xs" onclick="openLootModal('${l.id}')">编辑</button>
+        <button class="btn xs danger" onclick="deleteLoot('${l.id}')">删除</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  $('#lootBody').innerHTML = `<div class="tbl-wrap"><table><thead><tr>
+    <th>日期</th><th>副本</th><th>产出物品</th><th class="num">已售收入</th><th class="num">封印</th>
+    <th class="num">净额</th><th class="num">人均</th><th>参与人（点击标签切换已分红）</th><th class="num">状态</th><th class="num">操作</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
+
+  const w = $('#lootBody .tbl-wrap');
+  if (w) w.scrollTop = oldScroll;
+  fitTables();
+}
+
+// 点击参与者标签：切换是否已分红
+function toggleLootPaid(lid, pid){
+  const l = lootById(lid); if (!l) return;
+  const p = (l.participants || []).find(x => x.id === pid); if (!p) return;
+  p.paid = !p.paid;
+  p.paidAt = p.paid ? new Date().toISOString() : null;
+  markDirty(); renderLoot();
+  toast(p.paid ? `已标记「${p.name}」分红完成` : `已取消「${p.name}」的分红标记`);
+}
+
+function deleteLoot(id){
+  const l = lootById(id); if (!l) return;
+  const names = (l.items || []).map(it => it.name).filter(Boolean).join('、') || '该记录';
+  confirmModal('删除产出记录',
+    `<div style="line-height:1.9">确定删除「${esc(names)}」（${esc(l.nestName)}）这条记录吗？<br><span style="color:var(--text-2);font-size:12px">删除后无法恢复。</span></div>`,
+    () => {
+      S.lootList = S.lootList.filter(x => x.id !== id);
+      markDirty(); renderLoot(); toast('已删除记录');
+    }, '删除');
+}
+
+// 列表内快速修改某件物品的售价（后续卖出或改价时无需打开整条记录）
+function quickEditLootItem(lid, iid){
+  const l = lootById(lid); if (!l) return;
+  const it = (l.items || []).find(x => x.id === iid); if (!it) return;
+  const sold = (it.price || 0) > 0;
+  openModal('修改卖出价格',
+    `<div class="mut" style="margin-bottom:12px">${esc(it.name)} · ${esc(l.nestName || '')}（${esc(l.date || '')}）</div>
+     <div class="flex" style="gap:12px;flex-wrap:wrap">
+       <div class="form-row" style="flex:1;min-width:160px"><label>卖出价格（金币）</label><input type="number" id="qPrice" min="0" value="${it.price || 0}" placeholder="填 0 表示未售出"></div>
+       <div class="form-row" style="flex:1;min-width:160px"><label>售出日期</label><input type="date" id="qDate" value="${sold ? (it.soldAt || todayStr()) : todayStr()}"></div>
+     </div>
+     <div class="loot-hint">改价后如需按新金额重新分红，请点该记录的「编辑」再点「均分净额」。</div>`,
+    [{ text: '取消', fn: closeModal },
+     { text: '保存', cls: 'primary', fn: () => {
+       const price = Math.max(0, parseInt($('#qPrice').value) || 0);
+       it.price = price;
+       it.soldAt = price > 0 ? ($('#qDate').value || todayStr()) : null;
+       l.updatedAt = new Date().toISOString();
+       closeModal(); markDirty(); renderLoot();
+       toast(price > 0 ? `已记录「${it.name}」卖出 ${fmtGold(price)} 金币` : `「${it.name}」已改为未售出`);
+     }}]);
+}
+
+/* ---------------- 产出记录弹窗 ---------------- */
+function lootPRow(p, myChars){
+  const isSelf = !!p.selfCharId;
+  const known = myChars.some(c => c.id === p.selfCharId);
+  const head = isSelf
+    ? `<span class="p-role">我的角色</span>
+       <select class="p-char">
+         <option value="">选择角色</option>
+         ${myChars.map(c => `<option value="${c.id}" ${p.selfCharId === c.id ? 'selected' : ''}>${esc(c.acc)} / ${esc(c.name)}</option>`).join('')}
+         ${!known && p.selfCharId ? `<option value="${p.selfCharId}" selected>${esc(p.selfCharName || '已删除角色')}（已删除）</option>` : ''}
+       </select>`
+    : `<input class="p-name" placeholder="队友名字" value="${esc(p.name || '')}">`;
+  return `<div class="loot-p-row" data-pid="${p.id}" data-self="${isSelf ? '1' : '0'}">
+    ${head}
+    <span class="mut">分得</span>
+    <input type="number" class="p-amt" min="0" value="${p.amount || 0}">
+    <span class="mut">金币</span>
+    <label class="p-opt"><input type="radio" name="lootTaker" class="p-taker" ${p.id === lootModalTaker ? 'checked' : ''}> 拿物品</label>
+    <label class="p-opt"><input type="checkbox" class="p-paid" ${p.paid ? 'checked' : ''}> 已分红</label>
+    ${isSelf ? '' : '<button type="button" class="btn xs danger p-del" title="删除该队友">✕</button>'}
+  </div>`;
+}
+
+// 单件产出物品行
+function lootIRow(it){
+  const sold = (it.price || 0) > 0;
+  return `<div class="loot-i-row" data-iid="${it.id}" data-unit="${it.sealUnitPrice || 0}" data-soldat="${sold ? (it.soldAt || '') : ''}">
+    <input class="i-name" placeholder="物品名称" value="${esc(it.name || '')}" list="lootItemList">
+    <span class="mut">封印</span>
+    <input type="number" class="i-seal" min="0" value="${it.sealCount || 0}" title="该物品需要几个封印">
+    <span class="mut">个</span>
+    <span class="mut">售价</span>
+    <input type="number" class="i-price" min="0" value="${it.price || 0}" placeholder="可先不填，卖出后补">
+    <span class="i-soldat">${sold ? esc(it.soldAt || '') : '未售出'}</span>
+    <button type="button" class="btn xs danger i-del" title="删除该物品">✕</button>
+  </div>`;
+}
+
+function openLootModal(id){
+  const l = id ? lootById(id) : null;
+  const myChars = myCharList();
+  const nests = sortedNests(S.nestList);
+  const itemNames = [...new Set((S.lootList || []).flatMap(x => (x.items || []).map(it => it.name)).filter(Boolean))];
+  const nestOpts = nests.map(n => `<option value="${n.id}" ${l && l.nestId === n.id ? 'selected' : ''}>${esc(n.name)}${n.enable ? '' : '（已停用）'}</option>`).join('');
+
+  const items = l
+    ? l.items.map(it => ({ ...it }))
+    : [{ id: uid('i'), name: '', sealCount: 0, sealUnitPrice: S.config.sealUnitPrice || 0, price: 0, soldAt: null }];
+
+  let participants;
+  if (l){
+    participants = l.participants.map(p => ({ ...p }));
+  } else {
+    // 默认：一行自己的角色 + 两行队友，点「添加分红队友」继续增加
+    participants = [{
+      id: uid('p'), name: myChars[0]?.name || '', amount: 0, paid: false,
+      selfCharId: myChars[0]?.id || null,
+      selfCharName: myChars[0]?.name || null
+    }];
+    for (let i = 0; i < 2; i++){
+      participants.push({ id: uid('p'), name: '', amount: 0, paid: false, selfCharId: null, selfCharName: null });
+    }
+  }
+  lootModalTaker = l ? l.takerId : (participants[0]?.id || null);
+  lootModalSealUnit = S.config.sealUnitPrice || 0;
+
+  openModal(l ? '编辑产出记录' : '记录产出',
+    `<div class="flex" style="gap:12px;flex-wrap:wrap">
+      <div class="form-row" style="flex:2;min-width:200px"><label>副本</label><select id="lootNest">${nestOpts || '<option value="">请先到「管理」添加副本</option>'}</select></div>
+      <div class="form-row" style="flex:1;min-width:150px"><label>通关日期</label><input type="date" id="lootDate" value="${l?.date || todayStr()}"></div>
+    </div>
+    <datalist id="lootItemList">${itemNames.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+
+    <div class="loot-section items">
+      <div class="loot-sec-head"><span class="bar"></span>产出物品
+        <span class="sub">售价可登记时直接填写，也可之后在列表点金额修改；售价大于 0 时自动记录售出日期 · 封印单价 ${fmtGold(lootModalSealUnit)} 金币/个</span>
+      </div>
+      <div id="lootIRows">${items.map(lootIRow).join('')}</div>
+      <div class="flex" style="margin-top:8px">
+        <button type="button" class="btn xs" id="lootAddI">+ 添加物品</button>
+      </div>
+    </div>
+
+    <div class="loot-section members">
+      <div class="loot-sec-head"><span class="bar"></span>分红成员
+        <span class="sub">第一行为自己的角色，其余为队友；「拿物品」表示由其垫付封印费，分红时收回</span>
+      </div>
+      <div id="lootPRows">${participants.map(p => lootPRow(p, myChars)).join('')}</div>
+      <div class="flex" style="margin-top:8px">
+        <button type="button" class="btn xs" id="lootAddP">+ 添加分红队友</button>
+        <button type="button" class="btn xs" id="lootSplit">均分净额</button>
+        <span class="spacer"></span>
+        <span class="mut" id="lootRowCnt"></span>
+      </div>
+    </div>
+
+    <div class="form-row"><label>备注（可选）</label><input id="lootNote" value="${esc(l?.note || '')}" placeholder="如：买家已付款，封印由我先垫"></div>
+    <div class="loot-hint" id="lootCalcHint"></div>
+    <label class="flex" id="lootDiffBox" style="display:none;margin-top:8px;font-size:12px;color:var(--text-2)">
+      <input type="checkbox" id="lootDiffAllow"> 允许按当前差额保存（例如有人放弃分红）
+    </label>`,
+    [{ text: '取消', fn: closeModal },
+     { text: '保存', cls: 'primary', fn: () => saveLoot(id) }], true);
+
+  lootModalCalc();
+}
+
+function addLootParticipant(){
+  const myChars = myCharList();
+  $('#lootPRows').insertAdjacentHTML('beforeend', lootPRow({ id: uid('p'), name: '', amount: 0, paid: false }, myChars));
+  lootModalCalc();
+}
+
+function addLootItem(){
+  $('#lootIRows').insertAdjacentHTML('beforeend', lootIRow({ id: uid('i'), name: '', sealCount: 0, sealUnitPrice: lootModalSealUnit, price: 0, soldAt: null }));
+  lootModalCalc();
+}
+
+// 读取弹窗里的物品行
+function lootModalItems(){
+  return $$('#modalBody .loot-i-row').map(r => ({
+    id: r.dataset.iid,
+    name: r.querySelector('.i-name').value.trim(),
+    sealCount: Math.max(0, parseInt(r.querySelector('.i-seal').value) || 0),
+    sealUnitPrice: +r.dataset.unit || 0,
+    price: Math.max(0, parseInt(r.querySelector('.i-price').value) || 0),
+    soldAt: r.dataset.soldat || ''
+  }));
+}
+
+// 有效成员行：自己的角色行，或已填写名字的队友行（空白队友行不计入人数）
+function lootActiveRows(){
+  return $$('#modalBody .loot-p-row').filter(r =>
+    r.dataset.self === '1' || (r.querySelector('.p-name')?.value || '').trim()
+  );
+}
+
+// 均分：净额按人数平分，余数与封印垫付一并归「拿物品的人」
+function splitLootAmounts(){
+  const t = lootTotals({ items: lootModalItems() });
+  const rows = lootActiveRows();
+  if (!rows.length) return;
+  const base = Math.floor(t.net / rows.length);
+  const rem = t.net - base * rows.length;
+  const checkedTaker = $('#modalBody .p-taker:checked');
+  let takerRow = checkedTaker?.closest('.loot-p-row');
+  const takerValid = !!takerRow && rows.includes(takerRow);
+  if (!takerValid) takerRow = rows[0];
+  rows.forEach(r => { r.querySelector('.p-amt').value = base; });
+  const cur = parseInt(takerRow.querySelector('.p-amt').value) || 0;
+  takerRow.querySelector('.p-amt').value = cur + rem + (takerValid ? t.seal : 0);
+  lootModalCalc();
+}
+
+// 实时计算：已售收入 − 封印 = 净额；拿物品的人另收回垫付封印
+function lootModalCalc(){
+  if (!$('#lootCalcHint')) return;
+  const t = lootTotals({ items: lootModalItems() });
+  const rows = $$('#modalBody .loot-p-row');
+  const active = lootActiveRows();
+  const n = active.length;
+  const per = n ? Math.floor(t.net / n) : 0;
+  const checkedTaker = $('#modalBody .p-taker:checked');
+  const hasTaker = !!checkedTaker && active.includes(checkedTaker.closest('.loot-p-row'));
+  const target = t.net + (hasTaker ? t.seal : 0);
+  const sum = active.reduce((s,r) => s + (parseInt(r.querySelector('.p-amt').value) || 0), 0);
+  const diff = sum - target;
+  $('#lootRowCnt').textContent = `${n} 人`;
+  $('#lootCalcHint').innerHTML =
+    `已售出 <b>${fmtGold(t.sold)}</b> − 封印 <b>${fmtGold(t.seal)}</b> = 可分红净额 <b>${fmtGold(t.net)}</b>` +
+    (t.unsold ? `（另有 ${t.unsold} 件未售出，不计入分红）` : '') +
+    `，${n} 人均分约 <b>${fmtGold(per)}</b>` +
+    (hasTaker ? `；拿物品的人另收回垫付封印 <b>${fmtGold(t.seal)}</b>` : '') +
+    `<br>已分配 <b>${fmtGold(sum)}</b> / 应分 <b>${fmtGold(target)}</b> ` +
+    (diff === 0 ? '<span style="color:var(--success)">已对齐</span>' : `<span class="loot-diff">差额 ${diff > 0 ? '+' : ''}${fmtGold(diff)}</span>`);
+  const box = $('#lootDiffBox');
+  if (box) box.style.display = diff === 0 ? 'none' : 'flex';
+  if (diff === 0 && $('#lootDiffAllow')) $('#lootDiffAllow').checked = false;
+}
+
+function saveLoot(id){
+  const nest = nestById($('#lootNest').value);
+  const date = $('#lootDate').value || todayStr();
+  const note = $('#lootNote').value.trim();
+  if (!nest) { toast('请选择副本'); return; }
+
+  const items = lootModalItems().map(it => ({
+    ...it,
+    soldAt: it.price > 0 ? (it.soldAt || todayStr()) : null
+  }));
+  if (!items.length) { toast('请至少添加一件产出物品'); return; }
+  if (items.some(it => !it.name)) { toast('请填写物品名称'); return; }
+
+  const old = id ? lootById(id) : null;
+  const rows = $$('#modalBody .loot-p-row');
+  if (!rows.length) { toast('请至少添加一位参与者'); return; }
+  const myChars = myCharList();
+  const participants = [];
+  for (const r of rows){
+    const isSelf = r.dataset.self === '1';
+    let name = '', selfCharName = null, charId = null;
+    if (isSelf){
+      charId = r.querySelector('.p-char').value;
+      const mc = myChars.find(c => c.id === charId);
+      if (!mc) { toast('请为「我的角色」选择角色'); return; }
+      name = mc.name; selfCharName = mc.name;
+    } else {
+      name = r.querySelector('.p-name').value.trim();
+      // 空白队友行直接忽略，避免默认两行必须填写
+      if (!name) continue;
+    }
+    const pid = r.dataset.pid;
+    const paid = r.querySelector('.p-paid').checked;
+    const oldP = old?.participants.find(p => p.id === pid);
+    participants.push({
+      id: pid, name,
+      selfCharId: isSelf ? charId : null,
+      selfCharName,
+      amount: Math.max(0, parseInt(r.querySelector('.p-amt').value) || 0),
+      paid,
+      paidAt: paid ? (oldP?.paidAt || new Date().toISOString()) : null
+    });
+  }
+
+  if (!participants.length) { toast('请至少添加一位参与者'); return; }
+
+  const t = lootTotals({ items });
+  const checkedTaker = $('#modalBody .p-taker:checked')?.closest('.loot-p-row');
+  // 勾了「拿物品」但队友名字为空（已被忽略）时，按无人拿物品处理
+  const takerRow = checkedTaker && participants.some(p => p.id === checkedTaker.dataset.pid) ? checkedTaker : null;
+  const target = t.net + (takerRow ? t.seal : 0);
+  const sum = participants.reduce((s,p) => s + p.amount, 0);
+  if (sum !== target && !$('#lootDiffAllow').checked){
+    toast(`分红金额合计 ${fmtGold(sum)} 与应分 ${fmtGold(target)} 不一致`);
+    lootModalCalc();
+    return;
+  }
+
+  const rec = {
+    id: id || uid('loot'),
+    weekId: old ? old.weekId : S.config.currentWeekId,
+    date,
+    nestId: nest.id, nestName: nest.name,
+    items,
+    takerId: takerRow ? takerRow.dataset.pid : null,
+    participants, note,
+    createdAt: old ? old.createdAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  if (old) S.lootList[S.lootList.findIndex(x => x.id === id)] = rec;
+  else S.lootList.push(rec);
+
+  markDirty(); closeModal(); renderLoot();
+  toast(old ? '记录已更新' : '已记录产出');
+}
+
+/* ---------------- 分红页事件 ---------------- */
+$('#lootWeek').addEventListener('change', renderLoot);
+$('#lootSearch').addEventListener('input', renderLoot);
+$('#lootFilter').addEventListener('change', renderLoot);
+$('#btnAddLoot').addEventListener('click', () => openLootModal());
+// 弹窗内动态行的委托事件（只处理分红弹窗里的元素）
+$('#modalBody').addEventListener('click', e => {
+  if (e.target.closest('#lootAddP')) { addLootParticipant(); return; }
+  if (e.target.closest('#lootAddI')) { addLootItem(); return; }
+  if (e.target.closest('#lootSplit')) { splitLootAmounts(); return; }
+  const idel = e.target.closest('.i-del');
+  if (idel){
+    const row = idel.closest('.loot-i-row');
+    if ($$('#modalBody .loot-i-row').length <= 1) { toast('至少保留一件物品'); return; }
+    row.remove();
+    lootModalCalc();
+    return;
+  }
+  const del = e.target.closest('.p-del');
+  if (!del) return;
+  const row = del.closest('.loot-p-row');
+  if ($$('#modalBody .loot-p-row').length <= 1) { toast('至少保留一位成员'); return; }
+  if (row.querySelector('.p-taker')?.checked) lootModalTaker = null;
+  row.remove();
+  lootModalCalc();
+});
+$('#modalBody').addEventListener('change', e => {
+  const t = e.target;
+  const row = t.closest('.loot-p-row');
+  if (!row){
+    if (t.id === 'lootNest') lootModalCalc();
+    return;
+  }
+  if (t.classList.contains('p-taker')) lootModalTaker = row.dataset.pid;
+  lootModalCalc();
+});
+$('#modalBody').addEventListener('input', e => {
+  const ir = e.target.closest('.loot-i-row');
+  if (ir){
+    // 售价从 0 变为正数时自动记录售出日期，清空售价则恢复未售出
+    if (e.target.classList.contains('i-price')){
+      const price = parseInt(e.target.value) || 0;
+      let soldAt = ir.dataset.soldat || '';
+      if (price > 0 && !soldAt) soldAt = todayStr();
+      if (price <= 0) soldAt = '';
+      ir.dataset.soldat = soldAt;
+      ir.querySelector('.i-soldat').textContent = soldAt || '未售出';
+    }
+    lootModalCalc();
+    return;
+  }
+  if (e.target.closest('.loot-p-row')) lootModalCalc();
+});
+
+/* =====================================================================
+ * 数据页
+ * ===================================================================== */
+function renderDataPreview(){
+  if (!S) return;
+  const chars = S.accountList.reduce((s,a)=>s+(a.charList||[]).length,0);
+  $('#dataPreview').innerHTML =
+    `账号 <b>${S.accountList.length}</b> 个 · 角色 <b>${chars}</b> 个 · 副本 <b>${S.nestList.length}</b> 个 · 职业 <b>${S.jobList.length}</b> 个<br>` +
+    `当前周 ID：<b>${S.config.currentWeekId}</b> · 重置时间：每周${'日一二三四五六'[S.config.resetWeekday]} ${S.config.resetHour}:00 · ` +
+    `默认等级：<b>${S.config.defaultLevel}</b> · 等级上限：<b>${S.config.maxLevel}</b> · ` +
+    `封印单价：<b>${fmtGold(S.config.sealUnitPrice || 0)}</b> 金币/个 · ` +
+    `开机自启：<b>${S.config.autoStart === false ? '关闭' : '开启'}</b> · ` +
+    `分红记录：<b>${(S.lootList || []).length}</b> 条 · ` +
+    `历史周数：<b>${allWeekIds().length}</b>`;
+  $('#cfgResetWeekday').value = S.config.resetWeekday;
+  $('#cfgResetHour').value = S.config.resetHour;
+  $('#cfgDefaultLevel').value = S.config.defaultLevel;
+  $('#cfgMaxLevel').value = S.config.maxLevel;
+  $('#cfgSealPrice').value = S.config.sealUnitPrice || 0;
+  $('#cfgAutoStart').checked = S.config.autoStart !== false;
+}
+function saveResetCfg(){
+  S.config.resetWeekday = parseInt($('#cfgResetWeekday').value);
+  S.config.resetHour = Math.min(23, Math.max(0, parseInt($('#cfgResetHour').value) || 9));
+  S.config.currentWeekId = computeCurrentWeekId();
+  markDirty(); renderAll(); toast('重置设置已保存');
+}
+// 保存等级配置：默认等级不能超过等级上限
+function saveLevelCfg(){
+  let defLv = Math.max(1, parseInt($('#cfgDefaultLevel').value) || 95);
+  let maxLv = Math.max(1, parseInt($('#cfgMaxLevel').value) || 99);
+  if (defLv > maxLv) { toast('默认等级不能大于等级上限'); return; }
+  S.config.defaultLevel = defLv;
+  S.config.maxLevel = maxLv;
+  markDirty(); renderAll(); toast('等级配置已保存');
+}
+// 保存封印单价：仅影响之后新建的分红记录
+function saveSealCfg(){
+  const v = Math.max(0, parseInt($('#cfgSealPrice').value) || 0);
+  S.config.sealUnitPrice = v;
+  markDirty(); renderDataPreview(); renderLoot();
+  toast('封印单价已保存：' + fmtGold(v) + ' 金币/个');
+}
+// 开机自启动开关：同步写入/移除注册表 Run 项
+$('#cfgAutoStart').addEventListener('change', async e => {
+  const enabled = e.target.checked;
+  try {
+    await window.__TAURI__.invoke('set_autostart', { enabled });
+  } catch (err) {
+    e.target.checked = S.config.autoStart !== false;
+    toast('设置失败：' + err);
+    return;
+  }
+  S.config.autoStart = enabled;
+  markDirty();
+  renderDataPreview();
+  toast(enabled ? '已开启开机自动启动' : '已关闭开机自动启动');
+});
+
+/* =====================================================================
+ * 模态框
+ * ===================================================================== */
+function openModal(title, bodyHtml, buttons, wide){
+  $('#modalMask .modal').classList.toggle('wide', !!wide);
+  $('#modalTitle').innerHTML = title;
+  $('#modalBody').innerHTML = bodyHtml;
+  const foot = $('#modalFoot'); foot.innerHTML = '';
+  buttons.forEach(b => {
+    const btn = document.createElement('button');
+    btn.className = 'btn ' + (b.cls || ''); btn.textContent = b.text;
+    btn.addEventListener('click', b.fn); foot.appendChild(btn);
+  });
+  $('#modalMask').classList.add('show');
+}
+function closeModal(){ $('#modalMask').classList.remove('show'); }
+// 应用内二次确认：不依赖 WebView 原生 confirm
+function confirmModal(title, bodyHtml, onOk, okText = '确定', okCls = 'danger'){
+  openModal(title, bodyHtml, [
+    { text: '取消', fn: closeModal },
+    { text: okText, cls: okCls, fn: () => { closeModal(); onOk(); } }
+  ]);
+}
+// 弹窗内复选框全选 / 全不选
+function setAllChecks(selector, checked){
+  $$('#modalBody ' + selector).forEach(cb => cb.checked = checked);
+}
+$('#modalMask').addEventListener('click', e => { if (e.target.id === 'modalMask') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+/* =====================================================================
+ * 主题 / 导航 / 倒计时
+ * ===================================================================== */
+$('#btnTheme').addEventListener('click', () => {
+  document.documentElement.classList.toggle('dark');
+  $('#btnTheme').textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+});
+// 页面切换：导航按钮与右上角设置按钮共用
+function switchPage(name){
+  $$('nav.tabs button').forEach(x => x.classList.toggle('active', x.dataset.page === name));
+  $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + name));
+  // 每次进入页面都重新渲染，确保刚新增/修改的数据立即生效（无需重启程序）
+  if (name === 'overview') renderOverview();
+  if (name === 'manage') renderManage();
+  if (name === 'stats') renderStats();
+  if (name === 'loot') renderLoot();
+  if (name === 'data') renderDataPreview();
+  fitTables();
+}
+$$('nav.tabs button').forEach(b => b.addEventListener('click', () => switchPage(b.dataset.page)));
+$('#btnSettings').addEventListener('click', () => switchPage('data'));
+['searchChar','showArchived','showDisabledNest'].forEach(id => $('#'+id).addEventListener('input', renderOverview));
+$('#filterAccount').addEventListener('change', renderOverview);
+$('#overviewWeek').addEventListener('change', e => {
+  viewWeek = e.target.value === S.config.currentWeekId ? null : e.target.value;
+  renderOverview();
+});
+$('#btnExpandAll').addEventListener('click', () => { collapsedAcc = {}; renderOverview(); });
+
+// 倒计时 & 自动重置检查 & 时间异常检测（每秒）
+function tick(){
+  const now = new Date();
+  // 系统时间回退检测（回退超过1小时提示）
+  const nowMs = now.getTime();
+  if (nowMs < lastKnownTime - 3600000) $('#timeWarnBanner').style.display = 'flex';
+  lastKnownTime = nowMs;
+  if (!S) return;
+  // 自动重置判断
+  const cur = computeCurrentWeekId(now);
+  if (S.config.currentWeekId && cur !== S.config.currentWeekId) doReset(false);
+  // 倒计时显示
+  $('#weekBadge').textContent = S.config.currentWeekId;
+  $('#countdown').innerHTML = `距重置 <b>${fmtCountdown(nextResetTime(now) - now)}</b>`;
+}
+
+/* ---------------- 渲染入口 ---------------- */
+function renderAll(){
+  renderOverview();
+  renderManage();
+  renderStats();
+  renderLoot();
+  renderDataPreview();
+  tick();
+  fitTables();
+}
+
+// 表格高度精确适配可视区：页面本身不出现纵向滚动条，仅表格内部滚动
+function fitTables(){
+  document.querySelectorAll('.page.active .tbl-wrap, .page.active .stats-grid').forEach(w => {
+    const top = w.getBoundingClientRect().top;
+    const h = window.innerHeight - top - 70;   // 底部预留卡片间距
+    w.style.maxHeight = Math.max(160, Math.floor(h)) + 'px';
+  });
+}
+window.addEventListener('resize', fitTables);
+
+/* ---------------- 启动 ---------------- */
+async function init(){
+  // 检测 Tauri 环境
+  isTauri = !!(window.__TAURI__ && window.__TAURI__.invoke);
+  if (isTauri) {
+    document.title = '龙之谷小助手 - 桌面版';
+    // 显示实际读取的数据文件路径，便于排查"数据不见了"的问题
+    try {
+      const [personalPath, fixedPath] = await Promise.all([
+        window.__TAURI__.invoke('get_data_path'),
+        window.__TAURI__.invoke('get_fixed_path')
+      ]);
+      $('#dataPathInfo').innerHTML =
+        `📁 个人数据：${esc(personalPath)}<br>📁 固定数据：${esc(fixedPath)}`;
+    } catch (e) { /* 忽略 */ }
+    const loaded = await loadFromDisk();
+    if (!loaded) {
+      S = blankState();
+      S.config.currentWeekId = computeCurrentWeekId();
+      if (!loadErrorMsg || loadErrorMsg.includes('文件不存在')) {
+        // 仅在文件确实不存在（首次运行）时才创建空白文件
+        await autoSave();
+        toast('首次运行，已创建空白数据文件');
+      } else {
+        // 文件存在但读取/解析失败：保持空白视图，绝不覆盖原文件
+        toast('⚠️ 读取数据文件失败，原文件未被覆盖：' + loadErrorMsg);
+      }
+    }
+  } else {
+    // 浏览器环境降级
+    S = blankState();
+    S.config.currentWeekId = computeCurrentWeekId();
+    // 浏览器环境不支持自动写回：用浮动提示代替顶部横幅，避免页面抖动
+    setTimeout(() => toast('⚠️ 当前在浏览器中运行，无法自动保存，请使用桌面版'), 300);
+  }
+  // 同步开机自启动注册项：路径变化或与设置不一致时自动纠正
+  if (isTauri) {
+    try {
+      const want = S.config.autoStart !== false;
+      const actual = await window.__TAURI__.invoke('get_autostart');
+      if (actual !== want) await window.__TAURI__.invoke('set_autostart', { enabled: want });
+    } catch (e) { console.warn('同步开机自启动失败', e); }
+  }
+  renderAll();
+  countdownTimer = setInterval(tick, 1000);
+}
+init();
+window.addEventListener('beforeunload', e => {
+  if (dirty) { e.preventDefault(); e.returnValue = '数据尚未保存，确定离开吗？'; }
+});
+</script>
+</body>
+</html>
