@@ -2103,7 +2103,22 @@ function deleteLoot(id){
     }, '删除');
 }
 
-// 列表内快速修改某件物品的售价（后续卖出或改价时无需打开整条记录）
+// 商品售出后自动计算分红金额：净额按人数均分，余数与封印垫付归「拿物品的人」
+function autoSplitLoot(l){
+  const ps = (l && l.participants) || [];
+  if (!ps.length) return false;
+  const t = lootTotals(l);
+  if (t.sold <= 0) return false;
+  const base = Math.floor(t.net / ps.length);
+  const rem = t.net - base * ps.length;
+  let taker = ps.find(p => p.id === l.takerId);
+  const hasTaker = !!taker;
+  if (!taker) taker = ps[0];
+  ps.forEach(p => { p.amount = base; });
+  taker.amount = base + rem + (hasTaker ? t.seal : 0);
+  return true;
+}
+
 function quickEditLootItem(lid, iid){
   const l = lootById(lid); if (!l) return;
   const it = (l.items || []).find(x => x.id === iid); if (!it) return;
@@ -2114,15 +2129,18 @@ function quickEditLootItem(lid, iid){
        <div class="form-row" style="flex:1;min-width:160px"><label>卖出价格（金币）</label><input type="number" id="qPrice" min="0" value="${it.price || 0}" placeholder="填 0 表示未售出"></div>
        <div class="form-row" style="flex:1;min-width:160px"><label>售出日期</label><input type="date" id="qDate" value="${sold ? (it.soldAt || todayStr()) : todayStr()}"></div>
      </div>
-     <div class="loot-hint">改价后如需按新金额重新分红，请点该记录的「编辑」再点「均分净额」。</div>`,
+     <div class="loot-hint">保存后会自动按当前参与人均分净额，并把分红金额填入记录（可再点「编辑」手动微调）。</div>`,
     [{ text: '取消', fn: closeModal },
      { text: '保存', cls: 'primary', fn: () => {
        const price = Math.max(0, parseInt($('#qPrice').value) || 0);
        it.price = price;
        it.soldAt = price > 0 ? ($('#qDate').value || todayStr()) : null;
+       const auto = autoSplitLoot(l);
        l.updatedAt = new Date().toISOString();
-       closeModal(); markDirty(); renderLoot();
-       toast(price > 0 ? `已记录「${it.name}」卖出 ${fmtGold(price)} 金币` : `「${it.name}」已改为未售出`);
+       closeModal(); markDirty(); renderLoot(); renderStats();
+       toast(price > 0
+         ? `已记录「${it.name}」卖出 ${fmtGold(price)} 金币${auto ? '，分红金额已自动填入' : ''}`
+         : `「${it.name}」已改为未售出`);
      }}]);
 }
 
@@ -2201,7 +2219,7 @@ function openLootModal(id){
 
     <div class="loot-section items">
       <div class="loot-sec-head"><span class="bar"></span>产出物品
-        <span class="sub">售价可登记时直接填写，也可之后在列表点金额修改；售价大于 0 时自动记录售出日期 · 封印单价 ${fmtGold(lootModalSealUnit)} 金币/个</span>
+        <span class="sub">售价可登记时直接填写，也可之后在列表点金额修改；售价大于 0 时自动记录售出日期，并按人数均分把分红金额填入成员 · 封印单价 ${fmtGold(lootModalSealUnit)} 金币/个</span>
       </div>
       <div id="lootIRows">${items.map(lootIRow).join('')}</div>
       <div class="flex" style="margin-top:8px">
@@ -2357,7 +2375,12 @@ function saveLoot(id){
   // 勾了「拿物品」但队友名字为空（已被忽略）时，按无人拿物品处理
   const takerRow = checkedTaker && participants.some(p => p.id === checkedTaker.dataset.pid) ? checkedTaker : null;
   const target = t.net + (takerRow ? t.seal : 0);
-  const sum = participants.reduce((s,p) => s + p.amount, 0);
+  let sum = participants.reduce((s,p) => s + p.amount, 0);
+  // 商品已售出但还没填分红金额时，保存前自动均分填入
+  if (t.sold > 0 && sum === 0){
+    autoSplitLoot({ items, participants, takerId: takerRow ? takerRow.dataset.pid : null });
+    sum = participants.reduce((s,p) => s + p.amount, 0);
+  }
   if (sum !== target && !$('#lootDiffAllow').checked){
     toast(`分红金额合计 ${fmtGold(sum)} 与应分 ${fmtGold(target)} 不一致`);
     lootModalCalc();
@@ -2429,7 +2452,11 @@ $('#modalBody').addEventListener('input', e => {
       if (price <= 0) soldAt = '';
       ir.dataset.soldat = soldAt;
       ir.querySelector('.i-soldat').textContent = soldAt || '未售出';
+      splitLootAmounts();   // 售出/改价后自动把分红金额填入每位成员
+      return;
     }
+    // 封印数量变化同样影响净额，自动重算
+    if (e.target.classList.contains('i-seal')){ splitLootAmounts(); return; }
     lootModalCalc();
     return;
   }
