@@ -304,6 +304,13 @@ td.loot-items{white-space:normal;min-width:180px}
 html.dark .loot-king{background:#451a03;border-color:#78350f;color:#fcd34d}
 .loot-king.ou{color:#6b21a8;background:#f3e8ff;border-color:#d8b4fe}
 html.dark .loot-king.ou{background:#3b0764;border-color:#6b21a8;color:#d8b4fe}
+/* 总览页顶部的运气王 / 欧皇提示条 */
+.week-kings{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+.week-kings .king{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--bg-hover);font-size:12px;color:var(--text-2)}
+.week-kings .king b{font-size:13px;color:var(--text)}
+.week-kings .king .amt{color:var(--warn);font-weight:600;font-variant-numeric:tabular-nums}
+.week-kings .king.ou .amt{color:#7c3aed}
+html.dark .week-kings .king.ou .amt{color:#c4b5fd}
 
 @media (max-width:768px){
   main{padding:12px}
@@ -351,6 +358,7 @@ html.dark .loot-king.ou{background:#3b0764;border-color:#6b21a8;color:#d8b4fe}
         <button class="btn sm" id="btnExpandAll">全部展开</button>
         <button class="btn sm warn" id="btnManualReset">🔄 手动重置本周</button>
       </h2>
+      <div class="week-kings" id="weekKings"></div>
       <div class="toolbar">
         <div class="search-box"><input id="searchChar" placeholder="搜索角色名..."></div>
         <select id="filterAccount"><option value="">全部账号</option></select>
@@ -968,6 +976,25 @@ function fmtRecTime(rec){
 /* =====================================================================
  * 总览页渲染
  * ===================================================================== */
+// 总览页顶部：所选周收益最高的角色（运气王）与账号（欧皇）
+function renderWeekKings(week){
+  const el = $('#weekKings');
+  if (!el || !S) return;
+  const chars = incomeByChar(week).filter(r => r.week > 0);
+  const accs = incomeByAccount(week).filter(r => r.week > 0);
+  if (!chars.length){
+    el.innerHTML = `<span class="mut" style="font-size:12px">${esc(week)} 暂无收益记录</span>`;
+    return;
+  }
+  const topC = Math.max(...chars.map(r => r.week));
+  const topA = Math.max(...accs.map(r => r.week));
+  const namesC = chars.filter(r => r.week === topC).map(r => r.charName).join('、');
+  const namesA = accs.filter(r => r.week === topA).map(r => r.accName).join('、');
+  el.innerHTML =
+    `<span class="king"><span class="loot-king" style="margin-left:0">运气王</span><b>${esc(namesC)}</b><span class="amt">${fmtGold(topC)}</span></span>` +
+    `<span class="king ou"><span class="loot-king ou" style="margin-left:0">欧皇</span><b>${esc(namesA)}</b><span class="amt">${fmtGold(topA)}</span></span>`;
+}
+
 function renderOverview(){
   const wrap = $('#overviewTableWrap');
   const search = $('#searchChar').value.trim().toLowerCase();
@@ -984,6 +1011,7 @@ function renderOverview(){
   const week = wkSel.value;
   const readonly = week !== S.config.currentWeekId;
   $('#overviewWeekHint').style.display = readonly ? '' : 'none';
+  renderWeekKings(week);
 
   // 账号筛选下拉
   const sel = $('#filterAccount');
