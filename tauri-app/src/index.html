@@ -273,6 +273,7 @@ html.dark .loot-tag.paid{background:#052e16;border-color:#166534;color:#86efac}
 td.loot-participants{white-space:normal;min-width:220px;max-width:360px}
 td.loot-items{white-space:normal;min-width:180px}
 .loot-item-line{display:flex;align-items:baseline;gap:6px;line-height:1.7;font-size:12px}
+.loot-item-line .loot-owner{margin-left:auto;font-size:11px;color:var(--text-3);background:var(--bg-hover);border:1px solid var(--border);border-radius:8px;padding:0 6px;white-space:nowrap}
 /* 列表中的售价/未售出：可点击修改 */
 .loot-price{cursor:pointer;border-bottom:1px dashed currentColor;transition:color .15s}
 .loot-price:hover{color:var(--primary);border-bottom-color:var(--primary)}
@@ -287,12 +288,15 @@ td.loot-items{white-space:normal;min-width:180px}
 .loot-i-row .i-name{flex:1;min-width:140px}
 .loot-i-row .i-seal{width:64px}
 .loot-i-row .i-price{width:110px}
+.loot-i-row .i-owner{width:104px;padding:4px 6px;font-size:12px}
 .loot-i-row .i-soldat{font-size:12px;color:var(--text-3);min-width:76px;font-variant-numeric:tabular-nums}
 .modal.wide{max-width:760px}
 .loot-p-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;margin-bottom:8px;background:var(--bg-card)}
 .loot-p-row .p-name{flex:1;min-width:120px}
 .loot-p-row .p-char{flex:1;min-width:180px;max-width:280px}
 .loot-p-row .p-amt{width:110px}
+.loot-p-row .p-fee{font-size:11px;color:var(--warn);white-space:nowrap}
+.loot-p-row .p-net{font-size:12px;white-space:nowrap}
 .loot-p-row .p-role{font-size:12px;color:var(--text-2);min-width:18px;text-align:center}
 .loot-p-row .p-opt{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);white-space:nowrap}
 
@@ -753,6 +757,13 @@ function migrateState(st){
       }] : [];
       delete l.itemName; delete l.qty; delete l.price; delete l.sealCount; delete l.sealUnitPrice;
     }
+    // R 到的人：旧记录统一沿用原「拿物品的人」；卖出人默认自己（找不到则第一位）
+    const selfP = l.participants.find(p => p.selfCharId) || l.participants[0];
+    if (!l.sellerId) l.sellerId = (selfP && selfP.id) || null;
+    l.items.forEach(it => {
+      if (!it.ownerId) it.ownerId = l.takerId || (selfP && selfP.id) || null;
+    });
+    l.participants.forEach(p => { p.fee = p.fee || 0; });
   });
   // 出货记录：补齐缺失字段（价格、出售时间、归属周）
   st.dropList = st.dropList || [];
@@ -1781,7 +1792,7 @@ function incomeByChar(week){
   (S.lootList || []).forEach(l => (l.participants || []).forEach(p => {
     if (!p.selfCharId) return;
     const m = ensure(p.selfCharId, p.selfCharName);
-    const amt = p.amount || 0;
+    const amt = pNet(p);
     if (l.weekId === week){
       m.week += amt; m.lootWeek += amt; m.records++;
       if (p.paid) m.paid += amt; else m.unpaid += amt;
@@ -1976,7 +1987,8 @@ $$('#statsDimTabs button').forEach(b => b.addEventListener('click', () => {
 /* =====================================================================
  * 分红页：产出记账 + 封印成本 + 分红结清
  * ===================================================================== */
-let lootModalTaker = null;   // 弹窗中「拿物品的人」的参与者 id
+let lootModalSeller = null;   // 弹窗中「统一卖出」的参与者 id
+let lootModalCount = 0;       // 弹窗中有效成员数，用于判断人数是否变化
 let lootModalSealUnit = 0;   // 弹窗中生效的封印单价（新建取设置，编辑取记录快照）
 
 function todayStr(){
@@ -1989,6 +2001,10 @@ function fmtGold(n){
 }
 // 单件物品的封印成本
 function itemSealCost(it){ return Math.max(0, (it.sealCount || 0) * (it.sealUnitPrice || 0)); }
+// 交易手续费：千分之三，按发送额扣除（卖给自己不产生交易，不扣费）
+function tradeFee(v){ return Math.round((Number(v) || 0) * 0.003); }
+// 实际到手：发放额 − 手续费
+function pNet(p){ return Math.max(0, (p.amount || 0) - (p.fee || 0)); }
 // 汇总一条记录：已售收入、封印成本、未售件数
 function lootTotals(l){
   let sold = 0, seal = 0, unsold = 0;
@@ -2034,7 +2050,7 @@ function renderLoot(){
   weekList.forEach(l => { const t = lootTotals(l); totalSold += t.sold; totalSeal += t.seal; unsoldCnt += t.unsold; });
   const totalNet = Math.max(0, totalSold - totalSeal);
   let paidSum = 0, unpaidSum = 0;
-  weekList.forEach(l => (l.participants||[]).forEach(p => { const a = p.amount || 0; p.paid ? paidSum += a : unpaidSum += a; }));
+  weekList.forEach(l => (l.participants||[]).forEach(p => { const a = pNet(p); p.paid ? paidSum += a : unpaidSum += a; }));
 
   const cells = [
     ['记录数', String(weekList.length), ''],
@@ -2054,10 +2070,12 @@ function renderLoot(){
     (l.participants || []).forEach(p => {
       if (!p.selfCharId) return;
       const m = mine[p.selfCharId] || (mine[p.selfCharId] = { name: p.selfCharName || '已删除角色', paid: 0, unpaid: 0, all: 0, seal: 0 });
-      const a = p.amount || 0;
+      const a = pNet(p);
       if (l.weekId === week) { if (p.paid) m.paid += a; else m.unpaid += a; }
       if (p.paid) m.all += a;
-      if (l.takerId === p.id) m.seal += t.seal;
+      (l.items || []).forEach(it => {
+        if ((it.price || 0) > 0 && it.ownerId === p.id) m.seal += itemSealCost(it);
+      });
     });
   });
   const mineRows = Object.values(mine);
@@ -2099,9 +2117,15 @@ function renderLoot(){
     const per = n ? Math.floor(t.net / n) : 0;
     const done = lootSettled(l);
     const paidCnt = ps.filter(p => p.paid).length;
+    const ownerName = it => {
+      const op = ps.find(x => x.id === it.ownerId);
+      if (!op) return '';
+      return op.selfCharId ? '我' : op.name;
+    };
+    const ownTxt = it => it.ownerId ? `<span class="loot-owner">R到 ${esc(ownerName(it))}</span>` : '';
     const itemsHtml = (l.items || []).map(it => it.price > 0
-      ? `<div class="loot-item-line">${esc(it.name)}<span class="mut loot-price" onclick="quickEditLootItem('${l.id}','${it.id}')" title="点击修改卖出价格">${fmtGold(it.price)} · ${esc(it.soldAt || '')}</span></div>`
-      : `<div class="loot-item-line">${esc(it.name)}<span class="loot-diff loot-price" onclick="quickEditLootItem('${l.id}','${it.id}')" title="点击填写卖出价格">未售出</span></div>`
+      ? `<div class="loot-item-line">${esc(it.name)}${ownTxt(it)}<span class="mut loot-price" onclick="quickEditLootItem('${l.id}','${it.id}')" title="点击修改卖出价格">${fmtGold(it.price)} · ${esc(it.soldAt || '')}</span></div>`
+      : `<div class="loot-item-line">${esc(it.name)}${ownTxt(it)}<span class="loot-diff loot-price" onclick="quickEditLootItem('${l.id}','${it.id}')" title="点击填写卖出价格">未售出</span></div>`
     ).join('');
     const tags = ps.map(p =>
       `<span class="loot-tag ${p.paid ? 'paid' : ''}" onclick="toggleLootPaid('${l.id}','${p.id}')" title="点击切换已分红状态">${esc(p.name)}${p.selfCharId ? '<span class="who">我</span>' : ''} ${p.paid ? '✓' : '待付'}</span>`
@@ -2154,7 +2178,7 @@ function deleteLoot(id){
     }, '删除');
 }
 
-// 商品售出后自动计算分红金额：净额按人数均分，余数与封印垫付归「拿物品的人」
+// 商品售出后自动计算分红金额：净额按人数均分，余数归卖出人，封印费报销给 R 到的人，队友扣 0.3% 手续费
 function autoSplitLoot(l){
   const ps = (l && l.participants) || [];
   if (!ps.length) return false;
@@ -2162,11 +2186,22 @@ function autoSplitLoot(l){
   if (t.sold <= 0) return false;
   const base = Math.floor(t.net / ps.length);
   const rem = t.net - base * ps.length;
-  let taker = ps.find(p => p.id === l.takerId);
-  const hasTaker = !!taker;
-  if (!taker) taker = ps[0];
-  ps.forEach(p => { p.amount = base; });
-  taker.amount = base + rem + (hasTaker ? t.seal : 0);
+  const seller = ps.some(p => p.id === l.sellerId) ? l.sellerId : ps[0].id;
+  const gross = {};
+  ps.forEach(p => { gross[p.id] = base; });
+  // 封印费报销给每件物品「R 到的人」，找不到则归卖出人
+  (l.items || []).forEach(it => {
+    if ((it.price || 0) <= 0) return;
+    const cost = itemSealCost(it);
+    if (!cost) return;
+    const owner = gross[it.ownerId] !== undefined ? it.ownerId : seller;
+    gross[owner] += cost;
+  });
+  gross[seller] = (gross[seller] || 0) + rem;
+  ps.forEach(p => {
+    p.amount = gross[p.id] || 0;
+    p.fee = p.id === seller ? 0 : tradeFee(p.amount);
+  });
   return true;
 }
 
@@ -2209,10 +2244,10 @@ function lootPRow(p, myChars){
     : `<input class="p-name" placeholder="队友名字" value="${esc(p.name || '')}">`;
   return `<div class="loot-p-row" data-pid="${p.id}" data-self="${isSelf ? '1' : '0'}">
     ${head}
-    <span class="mut">分得</span>
+    <span class="mut">应分</span>
     <input type="number" class="p-amt" min="0" value="${p.amount || 0}">
-    <span class="mut">金币</span>
-    <label class="p-opt"><input type="radio" name="lootTaker" class="p-taker" ${p.id === lootModalTaker ? 'checked' : ''}> 拿物品</label>
+    <span class="p-fee mut"></span>
+    <span class="p-net"></span>
     <label class="p-opt"><input type="checkbox" class="p-paid" ${p.paid ? 'checked' : ''}> 已分红</label>
     ${isSelf ? '' : '<button type="button" class="btn xs danger p-del" title="删除该队友">✕</button>'}
   </div>`;
@@ -2229,6 +2264,8 @@ function lootIRow(it){
     <span class="mut">售价</span>
     <input type="number" class="i-price" min="0" value="${it.price || 0}" placeholder="可先不填，卖出后补">
     <span class="i-soldat">${sold ? esc(it.soldAt || '') : '未售出'}</span>
+    <span class="mut">R到</span>
+    <select class="i-owner" data-owner="${it.ownerId || ''}" title="这件物品被谁 R 到，封印费报销给该成员"></select>
     <button type="button" class="btn xs danger i-del" title="删除该物品">✕</button>
   </div>`;
 }
@@ -2258,8 +2295,9 @@ function openLootModal(id){
       participants.push({ id: uid('p'), name: '', amount: 0, paid: false, selfCharId: null, selfCharName: null });
     }
   }
-  lootModalTaker = l ? l.takerId : (participants[0]?.id || null);
+  lootModalSeller = l ? (l.sellerId || participants[0]?.id || null) : (participants[0]?.id || null);
   lootModalSealUnit = S.config.sealUnitPrice || 0;
+  lootModalCount = 0;
 
   openModal(l ? '编辑产出记录' : '记录产出',
     `<div class="flex" style="gap:12px;flex-wrap:wrap">
@@ -2270,7 +2308,7 @@ function openLootModal(id){
 
     <div class="loot-section items">
       <div class="loot-sec-head"><span class="bar"></span>产出物品
-        <span class="sub">售价可登记时直接填写，也可之后在列表点金额修改；售价大于 0 时自动记录售出日期，并按人数均分把分红金额填入成员 · 封印单价 ${fmtGold(lootModalSealUnit)} 金币/个</span>
+        <span class="sub">售价可登记时直接填写，也可之后在列表点金额修改；售价大于 0 时自动记录售出日期。每件物品选择被谁「R 到」，封印费在分红时报销给该成员 · 封印单价 ${fmtGold(lootModalSealUnit)} 金币/个</span>
       </div>
       <div id="lootIRows">${items.map(lootIRow).join('')}</div>
       <div class="flex" style="margin-top:8px">
@@ -2280,12 +2318,17 @@ function openLootModal(id){
 
     <div class="loot-section members">
       <div class="loot-sec-head"><span class="bar"></span>分红成员
-        <span class="sub">第一行为自己的角色，其余为队友；「拿物品」表示由其垫付封印费，分红时收回</span>
+        <span class="sub">第一行为自己的角色，其余为队友。物品统一交给「卖出人」出售并分发金币，交易给其他人时按发送额扣 0.3% 手续费</span>
+      </div>
+      <div class="flex" style="align-items:center;gap:8px;margin-bottom:8px;font-size:13px">
+        <span class="mut">统一卖出</span>
+        <select id="lootSeller" style="width:190px"></select>
+        <span class="mut" style="font-size:12px">该成员负责收钱与分红，自己那份不产生交易手续费</span>
       </div>
       <div id="lootPRows">${participants.map(p => lootPRow(p, myChars)).join('')}</div>
       <div class="flex" style="margin-top:8px">
         <button type="button" class="btn xs" id="lootAddP">+ 添加分红队友</button>
-        <button type="button" class="btn xs" id="lootSplit">均分净额</button>
+        <button type="button" class="btn xs" id="lootSplit">重新均分</button>
         <span class="spacer"></span>
         <span class="mut" id="lootRowCnt"></span>
       </div>
@@ -2299,17 +2342,22 @@ function openLootModal(id){
     [{ text: '取消', fn: closeModal },
      { text: '保存', cls: 'primary', fn: () => saveLoot(id) }], true);
 
+  syncOwnerSelects();
+  lootModalCount = lootActiveRows().length;
   lootModalCalc();
 }
 
 function addLootParticipant(){
   const myChars = myCharList();
   $('#lootPRows').insertAdjacentHTML('beforeend', lootPRow({ id: uid('p'), name: '', amount: 0, paid: false }, myChars));
+  syncOwnerSelects();
+  lootModalCount = lootActiveRows().length;
   lootModalCalc();
 }
 
 function addLootItem(){
   $('#lootIRows').insertAdjacentHTML('beforeend', lootIRow({ id: uid('i'), name: '', sealCount: 0, sealUnitPrice: lootModalSealUnit, price: 0, soldAt: null }));
+  syncOwnerSelects();
   lootModalCalc();
 }
 
@@ -2321,7 +2369,8 @@ function lootModalItems(){
     sealCount: Math.max(0, parseInt(r.querySelector('.i-seal').value) || 0),
     sealUnitPrice: +r.dataset.unit || 0,
     price: Math.max(0, parseInt(r.querySelector('.i-price').value) || 0),
-    soldAt: r.dataset.soldat || ''
+    soldAt: r.dataset.soldat || '',
+    ownerId: r.querySelector('.i-owner')?.value || ''
   }));
 }
 
@@ -2332,42 +2381,82 @@ function lootActiveRows(){
   );
 }
 
-// 均分：净额按人数平分，余数与封印垫付一并归「拿物品的人」
+// 成员下拉选项（卖出人 / R 到的人共用）
+function lootOwnerOptions(selectedId){
+  return lootActiveRows().map(r => {
+    const pid = r.dataset.pid;
+    let label;
+    if (r.dataset.self === '1'){
+      const sel = r.querySelector('.p-char');
+      const txt = sel?.selectedOptions?.[0]?.textContent.split(' / ').pop() || '';
+      label = '我' + (txt ? `（${txt}）` : '');
+    } else {
+      label = (r.querySelector('.p-name')?.value || '').trim() || '未命名队友';
+    }
+    return `<option value="${pid}" ${pid === selectedId ? 'selected' : ''}>${esc(label)}</option>`;
+  }).join('');
+}
+
+// 成员变化后刷新「R 到 / 统一卖出」下拉，避免选项与实际成员不一致
+function syncOwnerSelects(){
+  const ids = lootActiveRows().map(r => r.dataset.pid);
+  $$('#modalBody .loot-i-row').forEach(ir => {
+    const sel = ir.querySelector('.i-owner');
+    if (!sel) return;
+    let cur = sel.value || sel.dataset.owner || '';
+    if (!ids.includes(cur)) cur = ids[0] || '';
+    sel.innerHTML = lootOwnerOptions(cur);
+    if (cur) sel.value = cur;
+  });
+  const ss = $('#lootSeller');
+  if (ss){
+    let cur = ss.value || lootModalSeller || '';
+    if (!ids.includes(cur)) cur = ids[0] || '';
+    ss.innerHTML = lootOwnerOptions(cur);
+    if (cur) ss.value = cur;
+    lootModalSeller = cur;
+  }
+}
+
+// 均分：净额按人数平分，余数归卖出人，封印费报销给各物品「R 到的人」
 function splitLootAmounts(){
-  const t = lootTotals({ items: lootModalItems() });
+  const items = lootModalItems();
+  const t = lootTotals({ items });
   const rows = lootActiveRows();
   if (!rows.length) return;
+  const seller = $('#lootSeller')?.value || rows[0].dataset.pid;
   const base = Math.floor(t.net / rows.length);
   const rem = t.net - base * rows.length;
-  const checkedTaker = $('#modalBody .p-taker:checked');
-  let takerRow = checkedTaker?.closest('.loot-p-row');
-  const takerValid = !!takerRow && rows.includes(takerRow);
-  if (!takerValid) takerRow = rows[0];
-  rows.forEach(r => { r.querySelector('.p-amt').value = base; });
-  const cur = parseInt(takerRow.querySelector('.p-amt').value) || 0;
-  takerRow.querySelector('.p-amt').value = cur + rem + (takerValid ? t.seal : 0);
+  const gross = {};
+  rows.forEach(r => { gross[r.dataset.pid] = base; });
+  items.forEach(it => {
+    if ((it.price || 0) <= 0) return;
+    const cost = itemSealCost(it);
+    if (!cost) return;
+    const owner = gross[it.ownerId] !== undefined ? it.ownerId : seller;
+    gross[owner] += cost;
+  });
+  if (gross[seller] !== undefined) gross[seller] += rem;
+  rows.forEach(r => { r.querySelector('.p-amt').value = gross[r.dataset.pid] || 0; });
   lootModalCalc();
 }
 
-// 实时计算：已售收入 − 封印 = 净额；拿物品的人另收回垫付封印
+// 实时计算：净额 = 已售收入 − 封印；封印报销给 R 到的人；队友到手扣 0.3% 手续费
 function lootModalCalc(){
   if (!$('#lootCalcHint')) return;
   const t = lootTotals({ items: lootModalItems() });
-  const rows = $$('#modalBody .loot-p-row');
   const active = lootActiveRows();
   const n = active.length;
   const per = n ? Math.floor(t.net / n) : 0;
-  const checkedTaker = $('#modalBody .p-taker:checked');
-  const hasTaker = !!checkedTaker && active.includes(checkedTaker.closest('.loot-p-row'));
-  const target = t.net + (hasTaker ? t.seal : 0);
-  const sum = active.reduce((s,r) => s + (parseInt(r.querySelector('.p-amt').value) || 0), 0);
+  const seller = $('#lootSeller')?.value || '';
+  const target = t.net + t.seal;
+  let sum = 0, feeSum = 0; active.forEach(r => { const amt = parseInt(r.querySelector('.p-amt').value) || 0; const fee = r.dataset.pid === seller ? 0 : tradeFee(amt); sum += amt; feeSum += fee; r.querySelector('.p-fee').textContent = fee ? `手续费 ${fmtGold(fee)}` : ''; r.querySelector('.p-net').innerHTML = `<span class="mut">到手</span> <b>${fmtGold(amt - fee)}</b>`; });
   const diff = sum - target;
-  $('#lootRowCnt').textContent = `${n} 人`;
+  $('#lootRowCnt').textContent = `${n} 人 · 手续费 ${fmtGold(feeSum)}`;
   $('#lootCalcHint').innerHTML =
     `已售出 <b>${fmtGold(t.sold)}</b> − 封印 <b>${fmtGold(t.seal)}</b> = 可分红净额 <b>${fmtGold(t.net)}</b>` +
     (t.unsold ? `（另有 ${t.unsold} 件未售出，不计入分红）` : '') +
-    `，${n} 人均分约 <b>${fmtGold(per)}</b>` +
-    (hasTaker ? `；拿物品的人另收回垫付封印 <b>${fmtGold(t.seal)}</b>` : '') +
+    `，${n} 人均分约 <b>${fmtGold(per)}</b>；封印费报销给「R 到的人」，交易给队友按发送额扣 0.3% 手续费` +
     `<br>已分配 <b>${fmtGold(sum)}</b> / 应分 <b>${fmtGold(target)}</b> ` +
     (diff === 0 ? '<span style="color:var(--success)">已对齐</span>' : `<span class="loot-diff">差额 ${diff > 0 ? '+' : ''}${fmtGold(diff)}</span>`);
   const box = $('#lootDiffBox');
@@ -2422,16 +2511,17 @@ function saveLoot(id){
   if (!participants.length) { toast('请至少添加一位参与者'); return; }
 
   const t = lootTotals({ items });
-  const checkedTaker = $('#modalBody .p-taker:checked')?.closest('.loot-p-row');
-  // 勾了「拿物品」但队友名字为空（已被忽略）时，按无人拿物品处理
-  const takerRow = checkedTaker && participants.some(p => p.id === checkedTaker.dataset.pid) ? checkedTaker : null;
-  const target = t.net + (takerRow ? t.seal : 0);
+  let sellerId = $('#lootSeller')?.value || '';
+  if (!participants.some(p => p.id === sellerId)) sellerId = participants[0].id;
+  const target = t.net + t.seal;
   let sum = participants.reduce((s,p) => s + p.amount, 0);
   // 商品已售出但还没填分红金额时，保存前自动均分填入
   if (t.sold > 0 && sum === 0){
-    autoSplitLoot({ items, participants, takerId: takerRow ? takerRow.dataset.pid : null });
+    autoSplitLoot({ items, participants, sellerId });
     sum = participants.reduce((s,p) => s + p.amount, 0);
   }
+  // 手续费按最终金额重算：卖出人自己那份不产生交易
+  participants.forEach(p => { p.fee = p.id === sellerId ? 0 : tradeFee(p.amount); });
   if (sum !== target && !$('#lootDiffAllow').checked){
     toast(`分红金额合计 ${fmtGold(sum)} 与应分 ${fmtGold(target)} 不一致`);
     lootModalCalc();
@@ -2444,7 +2534,7 @@ function saveLoot(id){
     date,
     nestId: nest.id, nestName: nest.name,
     items,
-    takerId: takerRow ? takerRow.dataset.pid : null,
+    sellerId,
     participants, note,
     createdAt: old ? old.createdAt : new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -2478,18 +2568,22 @@ $('#modalBody').addEventListener('click', e => {
   if (!del) return;
   const row = del.closest('.loot-p-row');
   if ($$('#modalBody .loot-p-row').length <= 1) { toast('至少保留一位成员'); return; }
-  if (row.querySelector('.p-taker')?.checked) lootModalTaker = null;
   row.remove();
-  lootModalCalc();
+  syncOwnerSelects();
+  lootModalCount = lootActiveRows().length;
+  splitLootAmounts();
 });
 $('#modalBody').addEventListener('change', e => {
   const t = e.target;
+  if (t.id === 'lootSeller'){ lootModalSeller = t.value; splitLootAmounts(); return; }
+  if (t.classList.contains('i-owner')){ splitLootAmounts(); return; }
   const row = t.closest('.loot-p-row');
   if (!row){
     if (t.id === 'lootNest') lootModalCalc();
     return;
   }
-  if (t.classList.contains('p-taker')) lootModalTaker = row.dataset.pid;
+  // 自己的角色变化 / 队友名字变化后，刷新下拉标签与分红金额
+  syncOwnerSelects();
   lootModalCalc();
 });
 $('#modalBody').addEventListener('input', e => {
@@ -2511,7 +2605,13 @@ $('#modalBody').addEventListener('input', e => {
     lootModalCalc();
     return;
   }
-  if (e.target.closest('.loot-p-row')) lootModalCalc();
+  if (e.target.closest('.loot-p-row')){
+    // 队友名字会影响人数与下拉标签：人数变化时重新均分，否则只刷新金额显示
+    const n = lootActiveRows().length;
+    syncOwnerSelects();
+    if (n !== lootModalCount){ lootModalCount = n; splitLootAmounts(); }
+    else lootModalCalc();
+  }
 });
 
 /* =====================================================================
