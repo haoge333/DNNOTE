@@ -288,7 +288,6 @@ td.loot-items{white-space:normal;min-width:180px}
 .loot-i-row .i-name{flex:1;min-width:140px}
 .loot-i-row .i-seal{width:64px}
 .loot-i-row .i-price{width:110px}
-.loot-i-row .i-owner{width:104px;padding:4px 6px;font-size:12px}
 .loot-i-row .i-soldat{font-size:12px;color:var(--text-3);min-width:76px;font-variant-numeric:tabular-nums}
 .modal.wide{max-width:760px}
 .loot-p-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;margin-bottom:8px;background:var(--bg-card)}
@@ -297,6 +296,11 @@ td.loot-items{white-space:normal;min-width:180px}
 .loot-p-row .p-amt{width:110px}
 .loot-p-row .p-fee{font-size:11px;color:var(--warn);white-space:nowrap}
 .loot-p-row .p-net{font-size:12px;white-space:nowrap}
+/* 成员行末尾：勾选该成员 R 到的产出物品 */
+.loot-p-row .p-items{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-top:1px dashed var(--border);padding-top:6px;margin-top:2px}
+.loot-p-row .p-item{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text);background:var(--bg-hover);border:1px solid var(--border);border-radius:10px;padding:1px 8px;cursor:pointer;transition:all .15s}
+.loot-p-row .p-item:has(input:checked){background:var(--bg-active);border-color:var(--primary);color:var(--primary);font-weight:600}
+.loot-p-row .p-item input{width:13px;height:13px;cursor:pointer;accent-color:var(--primary)}
 .loot-p-row .p-role{font-size:12px;color:var(--text-2);min-width:18px;text-align:center}
 .loot-p-row .p-opt{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);white-space:nowrap}
 
@@ -2250,13 +2254,14 @@ function lootPRow(p, myChars){
     <span class="p-net"></span>
     <label class="p-opt"><input type="checkbox" class="p-paid" ${p.paid ? 'checked' : ''}> 已分红</label>
     ${isSelf ? '' : '<button type="button" class="btn xs danger p-del" title="删除该队友">✕</button>'}
+    <div class="p-items"></div>
   </div>`;
 }
 
 // 单件产出物品行
 function lootIRow(it){
   const sold = (it.price || 0) > 0;
-  return `<div class="loot-i-row" data-iid="${it.id}" data-unit="${it.sealUnitPrice || 0}" data-soldat="${sold ? (it.soldAt || '') : ''}">
+  return `<div class="loot-i-row" data-iid="${it.id}" data-unit="${it.sealUnitPrice || 0}" data-soldat="${sold ? (it.soldAt || '') : ''}" data-owner="${it.ownerId || ''}">
     <input class="i-name" placeholder="物品名称" value="${esc(it.name || '')}" list="lootItemList">
     <span class="mut">封印</span>
     <input type="number" class="i-seal" min="0" value="${it.sealCount || 0}" title="该物品需要几个封印">
@@ -2264,8 +2269,6 @@ function lootIRow(it){
     <span class="mut">售价</span>
     <input type="number" class="i-price" min="0" value="${it.price || 0}" placeholder="可先不填，卖出后补">
     <span class="i-soldat">${sold ? esc(it.soldAt || '') : '未售出'}</span>
-    <span class="mut">R到</span>
-    <select class="i-owner" data-owner="${it.ownerId || ''}" title="这件物品被谁 R 到，封印费报销给该成员"></select>
     <button type="button" class="btn xs danger i-del" title="删除该物品">✕</button>
   </div>`;
 }
@@ -2308,7 +2311,7 @@ function openLootModal(id){
 
     <div class="loot-section items">
       <div class="loot-sec-head"><span class="bar"></span>产出物品
-        <span class="sub">售价可登记时直接填写，也可之后在列表点金额修改；售价大于 0 时自动记录售出日期。每件物品选择被谁「R 到」，封印费在分红时报销给该成员 · 封印单价 ${fmtGold(lootModalSealUnit)} 金币/个</span>
+        <span class="sub">售价可登记时直接填写，也可之后在列表点金额修改；售价大于 0 时自动记录售出日期。物品被谁「R 到」在下方成员行勾选，封印费分红时报销给该成员 · 封印单价 ${fmtGold(lootModalSealUnit)} 金币/个</span>
       </div>
       <div id="lootIRows">${items.map(lootIRow).join('')}</div>
       <div class="flex" style="margin-top:8px">
@@ -2318,7 +2321,7 @@ function openLootModal(id){
 
     <div class="loot-section members">
       <div class="loot-sec-head"><span class="bar"></span>分红成员
-        <span class="sub">第一行为自己的角色，其余为队友。物品统一交给「卖出人」出售并分发金币，交易给其他人时按发送额扣 0.3% 手续费</span>
+        <span class="sub">第一行为自己的角色，其余为队友。每一行末尾可勾选该成员 R 到的物品（同一件物品只能勾一人），封印费报销给他；金币由「卖出人」收取并分发，交易给其他人时按发送额扣 0.3% 手续费</span>
       </div>
       <div class="flex" style="align-items:center;gap:8px;margin-bottom:8px;font-size:13px">
         <span class="mut">统一卖出</span>
@@ -2343,6 +2346,9 @@ function openLootModal(id){
      { text: '保存', cls: 'primary', fn: () => saveLoot(id) }], true);
 
   syncOwnerSelects();
+  const defOwner = $('#lootSeller')?.value || '';
+  $$('#modalBody .loot-i-row').forEach(ir => { if (!ir.dataset.owner) ir.dataset.owner = defOwner; });
+  syncOwnerChecks();
   lootModalCount = lootActiveRows().length;
   lootModalCalc();
 }
@@ -2351,13 +2357,20 @@ function addLootParticipant(){
   const myChars = myCharList();
   $('#lootPRows').insertAdjacentHTML('beforeend', lootPRow({ id: uid('p'), name: '', amount: 0, paid: false }, myChars));
   syncOwnerSelects();
+  syncOwnerChecks();
   lootModalCount = lootActiveRows().length;
   lootModalCalc();
 }
 
 function addLootItem(){
-  $('#lootIRows').insertAdjacentHTML('beforeend', lootIRow({ id: uid('i'), name: '', sealCount: 0, sealUnitPrice: lootModalSealUnit, price: 0, soldAt: null }));
+  const iid = uid('i');
+  $('#lootIRows').insertAdjacentHTML('beforeend', lootIRow({ id: iid, name: '', sealCount: 0, sealUnitPrice: lootModalSealUnit, price: 0, soldAt: null }));
+  // 新物品默认归卖出人，之后可在成员行勾选调整
+  const row = $(`#lootIRows .loot-i-row[data-iid="${iid}"]`);
+  const seller = $('#lootSeller')?.value || lootActiveRows()[0]?.dataset.pid || '';
+  if (row) row.dataset.owner = seller;
   syncOwnerSelects();
+  syncOwnerChecks();
   lootModalCalc();
 }
 
@@ -2370,7 +2383,7 @@ function lootModalItems(){
     sealUnitPrice: +r.dataset.unit || 0,
     price: Math.max(0, parseInt(r.querySelector('.i-price').value) || 0),
     soldAt: r.dataset.soldat || '',
-    ownerId: r.querySelector('.i-owner')?.value || ''
+    ownerId: r.dataset.owner || ''
   }));
 }
 
@@ -2381,7 +2394,7 @@ function lootActiveRows(){
   );
 }
 
-// 成员下拉选项（卖出人 / R 到的人共用）
+// 成员下拉选项（统一卖出）
 function lootOwnerOptions(selectedId){
   return lootActiveRows().map(r => {
     const pid = r.dataset.pid;
@@ -2397,17 +2410,9 @@ function lootOwnerOptions(selectedId){
   }).join('');
 }
 
-// 成员变化后刷新「R 到 / 统一卖出」下拉，避免选项与实际成员不一致
+// 成员变化后刷新「统一卖出」下拉，避免选项与实际成员不一致
 function syncOwnerSelects(){
   const ids = lootActiveRows().map(r => r.dataset.pid);
-  $$('#modalBody .loot-i-row').forEach(ir => {
-    const sel = ir.querySelector('.i-owner');
-    if (!sel) return;
-    let cur = sel.value || sel.dataset.owner || '';
-    if (!ids.includes(cur)) cur = ids[0] || '';
-    sel.innerHTML = lootOwnerOptions(cur);
-    if (cur) sel.value = cur;
-  });
   const ss = $('#lootSeller');
   if (ss){
     let cur = ss.value || lootModalSeller || '';
@@ -2416,6 +2421,19 @@ function syncOwnerSelects(){
     if (cur) ss.value = cur;
     lootModalSeller = cur;
   }
+}
+
+// 每位成员下的「已 R 到物品」勾选框：一件物品只能被一人勾选
+function syncOwnerChecks(){
+  const items = lootModalItems();
+  lootActiveRows().forEach(r => {
+    const pid = r.dataset.pid;
+    const box = r.querySelector('.p-items');
+    if (!box) return;
+    box.innerHTML = items.length
+      ? items.map(it => `<label class="p-item"><input type="checkbox" class="p-icheck" data-iid="${it.id}" ${it.ownerId === pid ? 'checked' : ''}> ${esc(it.name || '未命名物品')}</label>`).join('')
+      : '<span class="mut" style="font-size:11px">暂无产出物品</span>';
+  });
 }
 
 // 均分：净额按人数平分，余数归卖出人，封印费报销给各物品「R 到的人」
@@ -2561,6 +2579,7 @@ $('#modalBody').addEventListener('click', e => {
     const row = idel.closest('.loot-i-row');
     if ($$('#modalBody .loot-i-row').length <= 1) { toast('至少保留一件物品'); return; }
     row.remove();
+    syncOwnerChecks();
     lootModalCalc();
     return;
   }
@@ -2568,15 +2587,34 @@ $('#modalBody').addEventListener('click', e => {
   if (!del) return;
   const row = del.closest('.loot-p-row');
   if ($$('#modalBody .loot-p-row').length <= 1) { toast('至少保留一位成员'); return; }
+  const gonePid = row.dataset.pid;
   row.remove();
   syncOwnerSelects();
+  // 被删成员 R 到的物品收回归卖出人
+  const sellerNow = $('#lootSeller')?.value || '';
+  $$('#modalBody .loot-i-row').forEach(ir => { if (ir.dataset.owner === gonePid) ir.dataset.owner = sellerNow; });
+  syncOwnerChecks();
   lootModalCount = lootActiveRows().length;
   splitLootAmounts();
 });
 $('#modalBody').addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'lootSeller'){ lootModalSeller = t.value; splitLootAmounts(); return; }
-  if (t.classList.contains('i-owner')){ splitLootAmounts(); return; }
+  // 勾选「已 R 到的物品」：同一件物品只能归一位成员，勾选后自动取消其他人的勾选
+  if (t.classList.contains('p-icheck')){
+    const iid = t.dataset.iid;
+    const row = t.closest('.loot-p-row');
+    $$('#modalBody .loot-i-row').forEach(ir => {
+      if (ir.dataset.iid !== iid) return;
+      if (t.checked) ir.dataset.owner = row.dataset.pid;
+      else if (ir.dataset.owner === row.dataset.pid) ir.dataset.owner = '';
+    });
+    $$('#modalBody .p-icheck').forEach(c => {
+      if (c.dataset.iid === iid && c !== t) c.checked = false;
+    });
+    splitLootAmounts();
+    return;
+  }
   const row = t.closest('.loot-p-row');
   if (!row){
     if (t.id === 'lootNest') lootModalCalc();
@@ -2584,11 +2622,14 @@ $('#modalBody').addEventListener('change', e => {
   }
   // 自己的角色变化 / 队友名字变化后，刷新下拉标签与分红金额
   syncOwnerSelects();
+  syncOwnerChecks();
   lootModalCalc();
 });
 $('#modalBody').addEventListener('input', e => {
   const ir = e.target.closest('.loot-i-row');
   if (ir){
+    // 物品名称变化后刷新成员行的勾选框文字
+    if (e.target.classList.contains('i-name')) syncOwnerChecks();
     // 售价从 0 变为正数时自动记录售出日期，清空售价则恢复未售出
     if (e.target.classList.contains('i-price')){
       const price = parseInt(e.target.value) || 0;
