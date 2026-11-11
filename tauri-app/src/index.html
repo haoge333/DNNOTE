@@ -271,12 +271,15 @@ select.week-select{min-width:130px}
 html.dark .loot-tag.paid{background:#052e16;border-color:#166534;color:#86efac}
 .loot-tag .who{color:var(--text-3);font-size:10px}
 td.loot-participants{white-space:normal;min-width:220px;max-width:360px}
-td.loot-items{white-space:normal;min-width:180px}
-.loot-item-line{display:flex;align-items:baseline;gap:6px;line-height:1.7;font-size:12px}
-.loot-item-line .loot-owner{margin-left:auto;font-size:11px;color:var(--text-3);background:var(--bg-hover);border:1px solid var(--border);border-radius:8px;padding:0 6px;white-space:nowrap}
-/* 列表中的售价/未售出：可点击修改 */
-.loot-price{cursor:pointer;border-bottom:1px dashed currentColor;transition:color .15s}
-.loot-price:hover{color:var(--primary);border-bottom-color:var(--primary)}
+td.loot-items{white-space:normal;min-width:360px}
+/* 列表中的产出物品：按 名称 / R到 / 售价 / 日期 四列对齐的小标签 */
+.loot-item-line{display:grid;grid-template-columns:minmax(64px,1fr) 84px 70px 76px;align-items:center;gap:6px;line-height:1.9;font-size:11px;cursor:pointer;border-radius:4px}
+.loot-item-line:hover{background:var(--bg-active)}
+.loot-item-line .li-name{font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.loot-item-line .li-owner{font-size:10px;color:var(--text-2);background:var(--bg-hover);border:1px solid var(--border);border-radius:8px;padding:0 5px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.loot-item-line .li-price{text-align:right;font-variant-numeric:tabular-nums;color:var(--text);white-space:nowrap}
+.loot-item-line .li-date{text-align:right;font-size:10px;color:var(--text-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.loot-item-line:hover .li-price{color:var(--primary);text-decoration:underline}
 .loot-section{border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:16px}
 .loot-section.items{background:var(--bg-hover)}
 .loot-section.members{background:var(--bg-card);border-left:3px solid var(--primary)}
@@ -2126,11 +2129,16 @@ function renderLoot(){
       if (!op) return '';
       return op.selfCharId ? '我' : op.name;
     };
-    const ownTxt = it => it.ownerId ? `<span class="loot-owner">R到 ${esc(ownerName(it))}</span>` : '';
-    const itemsHtml = (l.items || []).map(it => it.price > 0
-      ? `<div class="loot-item-line">${esc(it.name)}${ownTxt(it)}<span class="mut loot-price" onclick="quickEditLootItem('${l.id}','${it.id}')" title="点击修改卖出价格">${fmtGold(it.price)} · ${esc(it.soldAt || '')}</span></div>`
-      : `<div class="loot-item-line">${esc(it.name)}${ownTxt(it)}<span class="loot-diff loot-price" onclick="quickEditLootItem('${l.id}','${it.id}')" title="点击填写卖出价格">未售出</span></div>`
-    ).join('');
+    const ownTxt = it => `<span class="li-owner" title="R 到该物品的成员">${it.ownerId ? 'R到 ' + esc(ownerName(it) || '已删除') : '未指定'}</span>`;
+    const itemsHtml = (l.items || []).map(it => {
+      const sold = (it.price || 0) > 0;
+      return `<div class="loot-item-line" onclick="quickEditLootItem('${l.id}','${it.id}')" title="点击修改卖出价格">
+        <span class="li-name">${esc(it.name)}</span>
+        ${ownTxt(it)}
+        <span class="li-price ${sold ? '' : 'loot-diff'}">${sold ? fmtGold(it.price) : '未售出'}</span>
+        <span class="li-date">${sold ? esc(it.soldAt || '') : ''}</span>
+      </div>`;
+    }).join('');
     const tags = ps.map(p =>
       `<span class="loot-tag ${p.paid ? 'paid' : ''}" onclick="toggleLootPaid('${l.id}','${p.id}')" title="点击切换已分红状态">${esc(p.name)}${p.selfCharId ? '<span class="who">我</span>' : ''} ${p.paid ? '✓' : '待付'}</span>`
     ).join('');
