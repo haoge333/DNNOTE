@@ -62,15 +62,19 @@ html.dark .lv-C{background:#052e16;color:#86efac}
 .bounty-row select.lv-sel{width:66px;padding:2px 4px;font-size:12px;font-weight:700;border-radius:6px}
 .bounty-add{color:var(--text-3);font-size:11px}
 /* 悬赏弹窗副本行 */
-.bounty-row{display:flex;align-items:center;gap:10px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px}
+.bounty-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px}
 .bounty-row label{flex:1;display:flex;align-items:center;gap:6px;cursor:pointer}
-.bounty-row label.opt{flex:0 0 auto;font-size:12px;color:var(--text-2);white-space:nowrap}
-.bounty-row label.opt input{flex:0 0 auto;margin:0}
-/* 悬赏弹窗：添加栏（选副本 → 等级/标记 → 登记） */
-.bounty-add-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px;border:1px dashed var(--border);border-radius:8px;background:var(--bg-hover)}
-.bounty-add-bar select{padding:4px 8px;font-size:12px}
-.bounty-add-bar .opt{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);cursor:pointer;white-space:nowrap;flex:0 0 auto}
-.bounty-add-bar .opt input{flex:0 0 auto;margin:0}
+.bounty-row label.opt{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;margin-bottom:0;font-size:12px;color:var(--text-2);white-space:nowrap}
+.bounty-row label.opt input{flex:0 0 auto;width:auto;margin:0}
+.bounty-row label.opt.done{color:var(--text)}
+.bounty-row label.opt.done.on{color:var(--success);font-weight:700}
+/* 悬赏弹窗：添加栏（选副本 → 等级/标记 → 新增），分两行避免控件重叠 */
+.bounty-add-bar{display:flex;flex-direction:column;gap:8px;padding:8px;border:1px dashed var(--border);border-radius:8px;background:var(--bg-hover)}
+.bounty-add-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bounty-add-bar .bounty-add-line select{width:auto;flex:0 0 auto;padding:4px 8px;font-size:12px}
+.bounty-add-bar .bounty-add-line #bountyPick{flex:1 1 140px;min-width:120px;width:auto}
+.bounty-add-line .opt{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);cursor:pointer;white-space:nowrap;flex:0 0 auto;margin-bottom:0}
+.bounty-add-line .opt input{flex:0 0 auto;width:auto;margin:0}
 .bounty-row .bounty-name{flex:1;display:flex;align-items:center;gap:6px;min-width:90px}
 .bounty-row .bounty-remove{flex:0 0 auto}
 /* 打赏页 */
@@ -1163,7 +1167,7 @@ function openBountyModal(cid){
   const temp = { nests: Object.assign({}, old.nests), done: Math.min(6, old.done || 0), flags: JSON.parse(JSON.stringify(old.flags || {})) };
   // 只列出该角色可通关的启用副本作为悬赏候选
   const candidates = sortedNests(S.nestList.filter(n => n.enable && c.availableNestIds.includes(n.id)));
-  // 渲染已登记列表与可添加副本下拉（登记后才写入 temp）
+  // 渲染已新增列表与可添加副本下拉（新增后才写入 temp）
   function renderBounty(){
     const added = candidates.filter(n => temp.nests[n.id] !== undefined);
     const rest = candidates.filter(n => temp.nests[n.id] === undefined);
@@ -1177,15 +1181,14 @@ function openBountyModal(cid){
           <select class="lv-sel${fl.lv ? ' lv-' + fl.lv : ''}" data-lvid="${n.id}" title="悬赏等级 L/S/A/B/C">${lvOpts}</select>
           <label class="opt"><input type="checkbox" data-fnid="${n.id}" data-flag="g" ${fl.g ? 'checked' : ''}> 同工会</label>
           <label class="opt"><input type="checkbox" data-fnid="${n.id}" data-flag="t" ${fl.t ? 'checked' : ''}> 限时</label>
-          <button type="button" class="btn xs bounty-toggle" data-bnid="${n.id}"
-            style="${temp.nests[n.id] ? 'background:var(--success);color:#fff' : ''}">${temp.nests[n.id] ? '✓ 已完成' : '○ 未完成'}</button>
+          <label class="opt done${temp.nests[n.id] ? ' on' : ''}"><input type="checkbox" data-doneid="${n.id}" ${temp.nests[n.id] ? 'checked' : ''}> 已完成</label>
           <button type="button" class="btn xs danger bounty-remove" data-bnid="${n.id}" title="从本周悬赏移除">✕</button>
         </div>`;
       }).join('')
-      : '<span class="mut">还没有登记悬赏副本，请在上方选择副本后点「登记」</span>';
+      : '<span class="mut">还没有新增悬赏副本，请在上方选择副本后点「新增」</span>';
     $('#bountyPick').innerHTML = rest.length
       ? rest.map(n => `<option value="${n.id}">${esc(n.name)}（${n.size}人）</option>`).join('')
-      : '<option value="">可通关副本已全部登记</option>';
+      : '<option value="">可通关副本已全部新增</option>';
     $('#bountyAdd').disabled = !rest.length;
     const curLv = $('#bountyLv').value;
     $('#bountyLv').className = 'lv-sel' + (curLv ? ' lv-' + curLv : '');
@@ -1208,12 +1211,11 @@ function openBountyModal(cid){
       if (cb.checked) temp.flags[nid][key] = true; else delete temp.flags[nid][key];
     }));
     // 切换完成状态
-    $$('#bountyNestList .bounty-toggle').forEach(btn => btn.addEventListener('click', () => {
-      const nid = btn.dataset.bnid;
+    $$('#bountyNestList input[data-doneid]').forEach(cb => cb.addEventListener('change', () => {
+      const nid = cb.dataset.doneid;
       if (temp.nests[nid] === undefined) return;
-      temp.nests[nid] = !temp.nests[nid];
-      btn.textContent = temp.nests[nid] ? '✓ 已完成' : '○ 未完成';
-      btn.style.cssText = temp.nests[nid] ? 'background:var(--success);color:#fff' : '';
+      temp.nests[nid] = cb.checked;
+      cb.parentElement.classList.toggle('on', cb.checked);
     }));
     // 移除该副本
     $$('#bountyNestList .bounty-remove').forEach(btn => btn.addEventListener('click', () => {
@@ -1230,18 +1232,23 @@ function openBountyModal(cid){
         <button type="button" class="btn sm" id="bDonePlus">＋</button>
       </div>
     </div>
-    <div class="form-row"><label>添加悬赏副本（选择副本 → 设置等级与标记 → 点「登记」）</label>
+    <div class="form-row"><label>新增悬赏副本（选择副本 → 设置等级与标记 → 点「新增」）</label>
       <div class="bounty-add-bar">
-        <select id="bountyPick" style="flex:1;min-width:160px"></select>
-        <select id="bountyLv" class="lv-sel" title="悬赏等级 L/S/A/B/C">
-          ${['', 'L', 'S', 'A', 'B', 'C'].map(v => `<option value="${v}">${v || '等级'}</option>`).join('')}
-        </select>
-        <label class="opt"><input type="checkbox" id="bountyFlagG"> 同工会</label>
-        <label class="opt"><input type="checkbox" id="bountyFlagT"> 限时</label>
-        <button type="button" class="btn sm primary" id="bountyAdd">＋ 登记</button>
+        <div class="bounty-add-line">
+          <select id="bountyPick" style="flex:1 1 140px;min-width:120px"></select>
+          <select id="bountyLv" class="lv-sel" title="悬赏等级 L/S/A/B/C">
+            ${['', 'L', 'S', 'A', 'B', 'C'].map(v => `<option value="${v}">${v || '等级'}</option>`).join('')}
+          </select>
+          <button type="button" class="btn sm primary" id="bountyAdd">＋ 新增</button>
+        </div>
+        <div class="bounty-add-line">
+          <label class="opt"><input type="checkbox" id="bountyFlagG"> 同工会</label>
+          <label class="opt"><input type="checkbox" id="bountyFlagT"> 限时</label>
+          <span class="mut" style="font-size:11px">新增后可在下方列表里勾选「已完成」</span>
+        </div>
       </div>
     </div>
-    <div class="form-row"><label>本周已登记的悬赏副本（可改等级、标记「同工会 / 限时」，右侧按钮切换完成状态）</label>
+    <div class="form-row"><label>本周已新增的悬赏副本（可改等级、标记「同工会 / 限时」，勾选右侧「已完成」修改状态）</label>
       <div id="bountyNestList"></div>
     </div>`,
     [{ text:'取消', fn: closeModal },
@@ -1269,7 +1276,7 @@ function openBountyModal(cid){
   $('#bountyLv').addEventListener('change', e => {
     e.target.className = 'lv-sel' + (e.target.value ? ' lv-' + e.target.value : '');
   });
-  // 选择副本 + 等级/标记 → 登记进本周悬赏
+  // 选择副本 + 等级/标记 → 新增进本周悬赏
   $('#bountyAdd').addEventListener('click', () => {
     const nid = $('#bountyPick').value;
     if (!nid) return;
@@ -1279,7 +1286,7 @@ function openBountyModal(cid){
     if ($('#bountyFlagG').checked) fl.g = true;
     if ($('#bountyFlagT').checked) fl.t = true;
     temp.flags[nid] = fl;
-    // 重置添加栏，方便连续登记
+    // 重置添加栏，方便连续新增
     $('#bountyLv').value = ''; $('#bountyLv').className = 'lv-sel';
     $('#bountyFlagG').checked = false; $('#bountyFlagT').checked = false;
     renderBounty();
