@@ -1033,7 +1033,7 @@ function getRec(char, nestId, weekId = S.config.currentWeekId){
   return w[nestId] || null;
 }
 // 悬赏可选奖励材料（勾选 ☆ 双倍时奖励翻倍）
-const BOUNTY_REWARDS = ['刻印药水', '防具卷轴', '武器卷轴', '三件套卷轴', '饰品卷轴', 'S刷新卡', 'A刷新卡', '代码'];
+const BOUNTY_REWARDS = ['刻印药水', '防具卷轴', '武器卷轴', '三件套卷轴', '饰品卷轴', 'S刷新卡', 'A刷新卡', '代码', '卡片宝盒'];
 // 读取角色本周悬赏：{ entries: [{id,nestId,lv,g,t,done,star,rewards}], done: 已完成次数(0-6) }，无记录返回 null
 function getBounty(c, weekId = S.config.currentWeekId){
   return c.bounty?.[weekId] || null;
