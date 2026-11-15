@@ -814,8 +814,15 @@ function migrateState(st){
     c.availableNestIds = c.availableNestIds || [];
     if (c.enable === undefined) c.enable = true;
     if (c.subJobId === undefined) c.subJobId = null;
-    // 悬赏记录：按周ID存储 { nests: {nid: 完成与否}, done: 已完成次数 }，每周独立
+    // 悬赏记录：改为数组 entries（同一副本每周可多条），旧 nests/flags 结构自动转换
     if (!c.bounty) c.bounty = {};
+    Object.keys(c.bounty).forEach(w => {
+      const b = c.bounty[w] || {};
+      if (!Array.isArray(b.entries)) b.entries = bountyEntries(b);
+      delete b.nests; delete b.flags;
+      b.done = Math.min(6, b.done || 0);
+      c.bounty[w] = b;
+    });
     Object.keys(c.weeklyRecord).forEach(w => {
       const rec = c.weeklyRecord[w] || {};
       Object.keys(rec).forEach(n => {
@@ -984,9 +991,18 @@ function getRec(char, nestId, weekId = S.config.currentWeekId){
   const w = char.weeklyRecord[weekId]; if (!w) return null;
   return w[nestId] || null;
 }
-// 读取角色本周悬赏：{ nests: {nid: 是否完成}, done: 已完成次数(0-6) }，无记录返回 null
+// 读取角色本周悬赏：{ entries: [{id,nestId,lv,g,t,done}], done: 已完成次数(0-6) }，无记录返回 null
 function getBounty(c, weekId = S.config.currentWeekId){
   return c.bounty?.[weekId] || null;
+}
+// 悬赏条目列表：同一副本每周可有多条；兼容旧的 nests/flags 结构
+function bountyEntries(b){
+  if (!b) return [];
+  if (Array.isArray(b.entries)) return b.entries;
+  return Object.entries(b.nests || {}).map(([nid, ok]) => {
+    const fl = b.flags?.[nid] || {};
+    return { id: uid('bn'), nestId: nid, lv: fl.lv || '', g: !!fl.g, t: !!fl.t, done: !!ok };
+  });
 }
 function setRec(char, nestId, val){
   const w = S.config.currentWeekId;
@@ -1098,14 +1114,14 @@ function renderOverview(){
       const hiddenCls = c.enable ? '' : ' char-hidden-row';
       // 本周悬赏：小字标签显示，已完成绿色、未完成普通色，点击编辑悬赏
       const bounty = getBounty(c, week);
-      const bountyTags = bounty && Object.keys(bounty.nests || {}).length
-        ? Object.entries(bounty.nests).map(([nid, isDone]) => {
-            const nn = nestById(nid);
+      const bList = bountyEntries(bounty);
+      const bountyTags = bList.length
+        ? bList.map(e => {
+            const nn = nestById(e.nestId);
             if (!nn) return '';
-            const fl = bounty.flags?.[nid] || {};
-            const fs = [fl.g ? '同会' : '', fl.t ? '限时' : ''].filter(Boolean).join('·');
-            const lv = ['L','S','A','B','C'].includes(fl.lv) ? `<i class="bt-grade lv-${fl.lv}">${fl.lv}</i>` : '';
-            return `<span class="bounty-tag ${isDone ? 'done' : ''}">${lv}${esc(nn.name)}${fs ? `<i class="bt-flag">${fs}</i>` : ''}</span>`;
+            const fs = [e.g ? '同会' : '', e.t ? '限时' : ''].filter(Boolean).join('·');
+            const lv = ['L','S','A','B','C'].includes(e.lv) ? `<i class="bt-grade lv-${e.lv}">${e.lv}</i>` : '';
+            return `<span class="bounty-tag ${e.done ? 'done' : ''}">${lv}${esc(nn.name)}${fs ? `<i class="bt-flag">${fs}</i>` : ''}</span>`;
           }).join('')
         : '';
       const cntTag = bounty ? `<span class="bounty-tag cnt${(bounty.done || 0) >= 6 ? ' done' : ''}">悬赏 ${bounty.done || 0}/6</span>` : '';
@@ -1165,36 +1181,34 @@ function openBountyModal(cid){
   const found = charById(cid); if (!found) return;
   const c = found.char;
   const weekId = S.config.currentWeekId;
-  const old = getBounty(c) || { nests: {}, done: 0 };
-  // 弹窗内编辑用的临时副本，保存时才写入
-  const temp = { nests: Object.assign({}, old.nests), done: Math.min(6, old.done || 0), flags: JSON.parse(JSON.stringify(old.flags || {})) };
+  const old = getBounty(c) || { entries: [], done: 0 };
+  // 弹窗内编辑用的临时副本，保存时才写入（entries 支持同一副本多条悬赏）
+  const temp = { entries: JSON.parse(JSON.stringify(bountyEntries(old))), done: Math.min(6, old.done || 0) };
   // 只列出该角色可通关的启用副本作为悬赏候选
   const candidates = sortedNests(S.nestList.filter(n => n.enable && c.availableNestIds.includes(n.id)));
-  // 渲染已新增列表与可添加副本下拉（新增后才写入 temp）
+  // 渲染悬赏列表与可新增副本下拉（同一副本可重复新增）
   function renderBounty(){
-    const added = candidates.filter(n => temp.nests[n.id] !== undefined);
-    const rest = candidates.filter(n => temp.nests[n.id] === undefined);
-    $('#bountyNestList').innerHTML = added.length
-      ? added.map(n => {
-        const fl = temp.flags[n.id] || {};
+    $('#bountyNestList').innerHTML = temp.entries.length
+      ? temp.entries.map(e => {
+        const n = nestById(e.nestId);
         const lvOpts = ['', 'L', 'S', 'A', 'B', 'C'].map(v =>
-          `<option value="${v}" ${(fl.lv || '') === v ? 'selected' : ''}>${v || '等级'}</option>`).join('');
-        return `<div class="bounty-row" data-bnid="${n.id}">
-          <span class="bounty-name">${esc(n.name)} <span class="mut">${n.size}人</span></span>
-          <select class="lv-sel${fl.lv ? ' lv-' + fl.lv : ''}" data-lvid="${n.id}" title="悬赏等级 L/S/A/B/C">${lvOpts}</select>
-          <label class="opt"><input type="checkbox" data-fnid="${n.id}" data-flag="g" ${fl.g ? 'checked' : ''}> 同工会</label>
-          <label class="opt"><input type="checkbox" data-fnid="${n.id}" data-flag="t" ${fl.t ? 'checked' : ''}> 限时</label>
-          <label class="opt done${temp.nests[n.id] ? ' on' : ''}"><input type="checkbox" data-doneid="${n.id}" ${temp.nests[n.id] ? 'checked' : ''}> 已完成</label>
-          <button type="button" class="btn xs danger bounty-remove" data-bnid="${n.id}" title="从本周悬赏移除">✕</button>
+          `<option value="${v}" ${(e.lv || '') === v ? 'selected' : ''}>${v || '等级'}</option>`).join('');
+        return `<div class="bounty-row" data-eid="${e.id}">
+          <span class="bounty-name">${esc(n ? n.name : '已删除副本')}${n ? ` <span class="mut">${n.size}人</span>` : ''}</span>
+          <select class="lv-sel${e.lv ? ' lv-' + e.lv : ''}" data-lvid="${e.id}" title="悬赏等级 L/S/A/B/C">${lvOpts}</select>
+          <label class="opt"><input type="checkbox" data-feid="${e.id}" data-flag="g" ${e.g ? 'checked' : ''}> 同工会</label>
+          <label class="opt"><input type="checkbox" data-feid="${e.id}" data-flag="t" ${e.t ? 'checked' : ''}> 限时</label>
+          <label class="opt done${e.done ? ' on' : ''}"><input type="checkbox" data-doneid="${e.id}" ${e.done ? 'checked' : ''}> 已完成</label>
+          <button type="button" class="btn xs danger bounty-remove" data-removeid="${e.id}" title="从本周悬赏移除">✕</button>
         </div>`;
       }).join('')
       : '<span class="mut">还没有新增悬赏副本，请在上方选择副本后点「新增」</span>';
-    $('#bountyPick').innerHTML = rest.length
-      ? rest.map(n => `<option value="${n.id}">${esc(n.name)}（${n.size}人）</option>`).join('')
-      : '<option value="">可通关副本已全部新增</option>';
-    $('#bountyAdd').disabled = !rest.length;
-    $('#bountyCount').textContent = added.length
-      ? `（共 ${added.length} 个，已完成 ${added.filter(n => temp.nests[n.id]).length} 个）`
+    $('#bountyPick').innerHTML = candidates.length
+      ? candidates.map(n => `<option value="${n.id}">${esc(n.name)}（${n.size}人）</option>`).join('')
+      : '<option value="">该角色没有可通关的副本</option>';
+    $('#bountyAdd').disabled = !candidates.length;
+    $('#bountyCount').textContent = temp.entries.length
+      ? `（共 ${temp.entries.length} 个，已完成 ${temp.entries.filter(e => e.done).length} 个）`
       : '';
     const curLv = $('#bountyLv').value;
     $('#bountyLv').className = 'lv-sel' + (curLv ? ' lv-' + curLv : '');
@@ -1203,30 +1217,28 @@ function openBountyModal(cid){
   function bindBountyRows(){
     // 悬赏等级 L/S/A/B/C
     $$('#bountyNestList select[data-lvid]').forEach(sel => sel.addEventListener('change', () => {
-      const nid = sel.dataset.lvid;
-      if (temp.nests[nid] === undefined) return;
-      temp.flags[nid] = temp.flags[nid] || {};
-      if (sel.value) temp.flags[nid].lv = sel.value; else delete temp.flags[nid].lv;
+      const e = temp.entries.find(x => x.id === sel.dataset.lvid);
+      if (!e) return;
+      e.lv = sel.value || '';
       // 下拉框按所选等级即时变色
       sel.className = 'lv-sel' + (sel.value ? ' lv-' + sel.value : '');
     }));
     // 同工会 / 限时标记
-    $$('#bountyNestList input[data-flag]').forEach(cb => cb.addEventListener('change', () => {
-      const nid = cb.dataset.fnid, key = cb.dataset.flag;
-      temp.flags[nid] = temp.flags[nid] || {};
-      if (cb.checked) temp.flags[nid][key] = true; else delete temp.flags[nid][key];
+    $$('#bountyNestList input[data-feid]').forEach(cb => cb.addEventListener('change', () => {
+      const e = temp.entries.find(x => x.id === cb.dataset.feid);
+      if (!e) return;
+      e[cb.dataset.flag] = cb.checked;
     }));
     // 切换完成状态
     $$('#bountyNestList input[data-doneid]').forEach(cb => cb.addEventListener('change', () => {
-      const nid = cb.dataset.doneid;
-      if (temp.nests[nid] === undefined) return;
-      temp.nests[nid] = cb.checked;
+      const e = temp.entries.find(x => x.id === cb.dataset.doneid);
+      if (!e) return;
+      e.done = cb.checked;
       renderBounty();
     }));
-    // 移除该副本
+    // 移除该条悬赏
     $$('#bountyNestList .bounty-remove').forEach(btn => btn.addEventListener('click', () => {
-      delete temp.nests[btn.dataset.bnid];
-      delete temp.flags[btn.dataset.bnid];
+      temp.entries = temp.entries.filter(x => x.id !== btn.dataset.removeid);
       renderBounty();
     }));
   }
@@ -1250,7 +1262,7 @@ function openBountyModal(cid){
         <div class="bounty-add-line">
           <label class="opt"><input type="checkbox" id="bountyFlagG"> 同工会</label>
           <label class="opt"><input type="checkbox" id="bountyFlagT"> 限时</label>
-          <span class="mut" style="font-size:11px">选择副本、等级与标记后点「新增」</span>
+          <span class="mut" style="font-size:11px">同一副本可多次新增，每次算一条悬赏</span>
         </div>
       </div>
     </div>
@@ -1260,19 +1272,19 @@ function openBountyModal(cid){
     [{ text:'取消', fn: closeModal },
      { text:'保存', cls:'primary', fn: () => {
        // 写回角色数据（即使为空也记录本周，方便区分"未设置"）
-       // 只保留仍在悬赏列表中的副本标记
-       const flags = {};
-       Object.keys(temp.flags || {}).forEach(nid => {
-         const f = temp.flags[nid];
-         if (temp.nests[nid] === undefined || !f) return;
-         const one = {};
-         if (f.g) one.g = true;
-         if (f.t) one.t = true;
-         if (['L','S','A','B','C'].includes(f.lv)) one.lv = f.lv;
-         if (Object.keys(one).length) flags[nid] = one;
-       });
        c.bounty = c.bounty || {};
-       c.bounty[weekId] = { nests: temp.nests, done: temp.done, flags };
+       c.bounty[weekId] = {
+         entries: temp.entries
+           .filter(e => nestById(e.nestId))
+           .map(e => {
+             const one = { id: e.id, nestId: e.nestId, done: !!e.done };
+             if (['L','S','A','B','C'].includes(e.lv)) one.lv = e.lv;
+             if (e.g) one.g = true;
+             if (e.t) one.t = true;
+             return one;
+           }),
+         done: temp.done
+       };
        markDirty(); closeModal(); renderOverview();
      }}]);
   // 次数增减
@@ -1282,16 +1294,18 @@ function openBountyModal(cid){
   $('#bountyLv').addEventListener('change', e => {
     e.target.className = 'lv-sel' + (e.target.value ? ' lv-' + e.target.value : '');
   });
-  // 选择副本 + 等级/标记 → 新增进本周悬赏
+  // 选择副本 + 等级/标记 → 新增一条悬赏（同一副本可重复新增）
   $('#bountyAdd').addEventListener('click', () => {
     const nid = $('#bountyPick').value;
     if (!nid) return;
-    temp.nests[nid] = false;
-    const fl = {};
-    if ($('#bountyLv').value) fl.lv = $('#bountyLv').value;
-    if ($('#bountyFlagG').checked) fl.g = true;
-    if ($('#bountyFlagT').checked) fl.t = true;
-    temp.flags[nid] = fl;
+    temp.entries.push({
+      id: uid('bn'),
+      nestId: nid,
+      lv: $('#bountyLv').value || '',
+      g: $('#bountyFlagG').checked,
+      t: $('#bountyFlagT').checked,
+      done: false
+    });
     // 重置添加栏，方便连续新增
     $('#bountyLv').value = ''; $('#bountyLv').className = 'lv-sel';
     $('#bountyFlagG').checked = false; $('#bountyFlagT').checked = false;
@@ -1944,11 +1958,10 @@ function renderStats(){
       let total = 0, done = 0, pTotal = 0, pDone = 0;
       const b = c.bounty?.[week];
       const bDone = b?.done || 0;
-      const bDetail = Object.entries(b?.nests || {}).map(([nid, ok]) => {
-        const nn = nestById(nid); if (!nn) return '';
-        const fl = b.flags?.[nid] || {};
-        const fs = [fl.g?'同会':'', fl.t?'限时':''].filter(Boolean).join('/');
-        return `${nn.name}${fl.lv?`[${fl.lv}]`:''}${ok?'✓':'○'}${fs?'['+fs+']':''}`;
+      const bDetail = bountyEntries(b).map(e => {
+        const nn = nestById(e.nestId); if (!nn) return '';
+        const fs = [e.g?'同会':'', e.t?'限时':''].filter(Boolean).join('/');
+        return `${nn.name}${e.lv?`[${e.lv}]`:''}${e.done?'✓':'○'}${fs?'['+fs+']':''}`;
       }).filter(Boolean).join('、');
       html += `<tr><td>${esc(a.name)}</td>
         <td><span class="job-dot" style="background:${jobColor(c.jobId)}"></span><b style="color:${jobColor(c.jobId)}">${esc(c.name)}</b></td>
