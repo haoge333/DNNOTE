@@ -85,6 +85,10 @@ html.dark .lv-C{background:#052e16;color:#86efac}
 /* 悬赏弹窗：添加栏（选副本 → 等级/标记 → 新增） */
 .bounty-add-bar{display:flex;flex-direction:column;gap:8px;padding:8px;border-radius:8px;background:var(--bg-hover)}
 .bounty-add-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* 材料区：多行时整体贴顶左对齐，避免"奖励材料"标签垂直居中造成参差 */
+.bounty-add-line.mats-line{align-items:flex-start}
+.bounty-add-line.mats-line>span{line-height:24px;flex:0 0 auto}
+.bounty-add-line.mats-line .bounty-rewards{flex:1 1 200px;min-width:0}
 .bounty-add-bar .bounty-add-line select{width:auto;flex:0 0 auto;padding:4px 8px;font-size:12px}
 .bounty-add-bar .bounty-add-line #bountyPick{flex:1 1 140px;min-width:120px;width:auto}
 .bounty-add-line .opt{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);cursor:pointer;white-space:nowrap;flex:0 0 auto;margin-bottom:0}
@@ -1381,7 +1385,7 @@ function openBountyModal(cid){
           <label class="opt"><input type="checkbox" id="bountyFlagT"> 限时</label>
           <label class="opt star-opt" title="勾选后该条悬赏奖励翻倍"><input type="checkbox" id="bountyStar"> <span class="star-g">★</span> 双倍奖励</label>
         </div>
-        <div class="bounty-add-line">
+        <div class="bounty-add-line mats-line">
           <span class="mut" style="font-size:12px;flex:0 0 auto">奖励材料</span>
           <div class="bounty-rewards" id="bountyRewards">
             ${BOUNTY_REWARDS.map(m => `<label class="opt"><input type="checkbox" data-newmat="${m}"> ${esc(m)}</label>`).join('')}
