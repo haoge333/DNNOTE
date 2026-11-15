@@ -68,8 +68,12 @@ html.dark .lv-C{background:#052e16;color:#86efac}
 .bounty-row label.opt input{flex:0 0 auto;width:auto;margin:0}
 .bounty-row label.opt.done{color:var(--text)}
 .bounty-row label.opt.done.on{color:var(--success);font-weight:700}
-/* 悬赏弹窗：添加栏（选副本 → 等级/标记 → 新增），分两行避免控件重叠 */
-.bounty-add-bar{display:flex;flex-direction:column;gap:8px;padding:8px;border:1px dashed var(--border);border-radius:8px;background:var(--bg-hover)}
+/* 悬赏弹窗分区卡片：新增区 / 列表区分开显示 */
+.form-row.bounty-sec{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:12px;background:var(--bg-card)}
+.form-row.bounty-sec>label{display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:13px;font-weight:600;color:var(--text)}
+.bounty-sec .sec-no{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--primary);color:#fff;font-size:11px;font-weight:700;flex:0 0 auto}
+/* 悬赏弹窗：添加栏（选副本 → 等级/标记 → 新增） */
+.bounty-add-bar{display:flex;flex-direction:column;gap:8px;padding:8px;border-radius:8px;background:var(--bg-hover)}
 .bounty-add-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .bounty-add-bar .bounty-add-line select{width:auto;flex:0 0 auto;padding:4px 8px;font-size:12px}
 .bounty-add-bar .bounty-add-line #bountyPick{flex:1 1 140px;min-width:120px;width:auto}
@@ -1190,6 +1194,9 @@ function openBountyModal(cid){
       ? rest.map(n => `<option value="${n.id}">${esc(n.name)}（${n.size}人）</option>`).join('')
       : '<option value="">可通关副本已全部新增</option>';
     $('#bountyAdd').disabled = !rest.length;
+    $('#bountyCount').textContent = added.length
+      ? `（共 ${added.length} 个，已完成 ${added.filter(n => temp.nests[n.id]).length} 个）`
+      : '';
     const curLv = $('#bountyLv').value;
     $('#bountyLv').className = 'lv-sel' + (curLv ? ' lv-' + curLv : '');
     bindBountyRows();
@@ -1215,7 +1222,7 @@ function openBountyModal(cid){
       const nid = cb.dataset.doneid;
       if (temp.nests[nid] === undefined) return;
       temp.nests[nid] = cb.checked;
-      cb.parentElement.classList.toggle('on', cb.checked);
+      renderBounty();
     }));
     // 移除该副本
     $$('#bountyNestList .bounty-remove').forEach(btn => btn.addEventListener('click', () => {
@@ -1232,7 +1239,7 @@ function openBountyModal(cid){
         <button type="button" class="btn sm" id="bDonePlus">＋</button>
       </div>
     </div>
-    <div class="form-row"><label>新增悬赏副本（选择副本 → 设置等级与标记 → 点「新增」）</label>
+    <div class="form-row bounty-sec"><label><span class="sec-no">1</span> 新增悬赏副本</label>
       <div class="bounty-add-bar">
         <div class="bounty-add-line">
           <select id="bountyPick" style="flex:1 1 140px;min-width:120px"></select>
@@ -1244,11 +1251,11 @@ function openBountyModal(cid){
         <div class="bounty-add-line">
           <label class="opt"><input type="checkbox" id="bountyFlagG"> 同工会</label>
           <label class="opt"><input type="checkbox" id="bountyFlagT"> 限时</label>
-          <span class="mut" style="font-size:11px">新增后可在下方列表里勾选「已完成」</span>
+          <span class="mut" style="font-size:11px">选择副本、等级与标记后点「新增」</span>
         </div>
       </div>
     </div>
-    <div class="form-row"><label>本周已新增的悬赏副本（可改等级、标记「同工会 / 限时」，勾选右侧「已完成」修改状态）</label>
+    <div class="form-row bounty-sec"><label><span class="sec-no">2</span> 本周已新增的悬赏副本 <span class="mut" id="bountyCount" style="font-weight:400"></span></label>
       <div id="bountyNestList"></div>
     </div>`,
     [{ text:'取消', fn: closeModal },
