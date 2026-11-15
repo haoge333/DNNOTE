@@ -64,11 +64,13 @@ html.dark .lv-C{background:#052e16;color:#86efac}
 /* 悬赏弹窗副本行 */
 .bounty-row{display:flex;align-items:center;gap:10px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px}
 .bounty-row label{flex:1;display:flex;align-items:center;gap:6px;cursor:pointer}
-.bounty-row label.opt{flex:0 0 auto;font-size:12px;color:var(--text-2)}
+.bounty-row label.opt{flex:0 0 auto;font-size:12px;color:var(--text-2);white-space:nowrap}
+.bounty-row label.opt input{flex:0 0 auto;margin:0}
 /* 悬赏弹窗：添加栏（选副本 → 等级/标记 → 登记） */
 .bounty-add-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px;border:1px dashed var(--border);border-radius:8px;background:var(--bg-hover)}
 .bounty-add-bar select{padding:4px 8px;font-size:12px}
-.bounty-add-bar .opt{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);cursor:pointer}
+.bounty-add-bar .opt{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);cursor:pointer;white-space:nowrap;flex:0 0 auto}
+.bounty-add-bar .opt input{flex:0 0 auto;margin:0}
 .bounty-row .bounty-name{flex:1;display:flex;align-items:center;gap:6px;min-width:90px}
 .bounty-row .bounty-remove{flex:0 0 auto}
 /* 打赏页 */
