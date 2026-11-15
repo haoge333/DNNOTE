@@ -234,11 +234,11 @@ html.dark .tag-mid{background:#451a03;color:#fcd34d;border-color:#78350f}
 .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(2px)}
 .modal-mask.show{display:flex}
 .modal{background:var(--bg-card);border-radius:12px;width:90%;max-width:480px;max-height:85vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.3)}
-.modal-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:2;background:var(--bg-card);border-radius:12px 12px 0 0}
 .modal-head h3{font-size:15px}
 .modal-head .close{font-size:20px;color:var(--text-3);line-height:1;padding:4px}
 .modal-body{padding:20px}
-.modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;z-index:2;background:var(--bg-card);border-radius:0 0 12px 12px}
 .form-row{margin-bottom:14px}
 .form-row label{display:block;margin-bottom:6px;font-size:13px;color:var(--text-2);font-weight:500}
 .form-row input,.form-row select{width:100%}
@@ -1235,6 +1235,30 @@ function openBountyModal(cid){
   const candidates = sortedNests(S.nestList.filter(n => n.enable && c.availableNestIds.includes(n.id)));
   // 当前展开奖励材料选择器的条目 id（同一时间只展开一条）
   let matOpenId = null;
+  let autoSaveOn = false; // 首次渲染后开启自动保存，避免打开即写盘
+  // 立即把弹窗内的改动写回角色数据并刷新总览（无需手动点保存）
+  function saveNow(){
+    c.bounty = c.bounty || {};
+    const entries = temp.entries.filter(e => nestById(e.nestId)).map(e => {
+      const one = { id: e.id, nestId: e.nestId, done: !!e.done };
+      if (['L','S','A','B','C'].includes(e.lv)) one.lv = e.lv;
+      if (e.g) one.g = true;
+      if (e.t) one.t = true;
+      if (e.star) one.star = true;
+      const mats = BOUNTY_REWARDS.filter(m => (e.rewards || []).includes(m));
+      if (mats.length) one.rewards = mats;
+      return one;
+    });
+    // 全空时删除本周记录，保持"未设置"语义
+    if (!entries.length && !temp.done) delete c.bounty[weekId];
+    else c.bounty[weekId] = { entries, done: temp.done };
+    markDirty();
+    // 只刷新总览，保留表格滚动位置，避免每次改动都跳回顶部
+    const wrap = $('#overviewTableWrap');
+    const sx = wrap.scrollLeft, sy = wrap.scrollTop;
+    renderOverview();
+    wrap.scrollLeft = sx; wrap.scrollTop = sy;
+  }
   // 渲染悬赏列表与可新增副本下拉（同一副本可重复新增）
   function renderBounty(){
     $('#bountyNestList').innerHTML = temp.entries.length
@@ -1279,6 +1303,7 @@ function openBountyModal(cid){
     const curLv = $('#bountyLv').value;
     $('#bountyLv').className = 'lv-sel' + (curLv ? ' lv-' + curLv : '');
     bindBountyRows();
+    if (autoSaveOn) saveNow(); else autoSaveOn = true;
   }
   function bindBountyRows(){
     // 悬赏等级 L/S/A/B/C
@@ -1286,8 +1311,9 @@ function openBountyModal(cid){
       const e = temp.entries.find(x => x.id === sel.dataset.lvid);
       if (!e) return;
       e.lv = sel.value || '';
-      // 下拉框按所选等级即时变色
+      // 下拉框按所选等级即时变色并保存
       sel.className = 'lv-sel' + (sel.value ? ' lv-' + sel.value : '');
+      saveNow();
     }));
     // 同工会 / 限时标记
     $$('#bountyNestList input[data-feid]').forEach(cb => cb.addEventListener('change', () => {
@@ -1364,30 +1390,10 @@ function openBountyModal(cid){
     <div class="form-row bounty-sec"><label>本周悬赏 <span class="mut" id="bountyCount" style="font-weight:400"></span></label>
       <div id="bountyNestList"></div>
     </div>`,
-    [{ text:'取消', fn: closeModal },
-     { text:'保存', cls:'primary', fn: () => {
-       // 写回角色数据（即使为空也记录本周，方便区分"未设置"）
-       c.bounty = c.bounty || {};
-       c.bounty[weekId] = {
-         entries: temp.entries
-           .filter(e => nestById(e.nestId))
-           .map(e => {
-             const one = { id: e.id, nestId: e.nestId, done: !!e.done };
-             if (['L','S','A','B','C'].includes(e.lv)) one.lv = e.lv;
-             if (e.g) one.g = true;
-             if (e.t) one.t = true;
-             if (e.star) one.star = true;
-             const mats = BOUNTY_REWARDS.filter(m => (e.rewards || []).includes(m));
-             if (mats.length) one.rewards = mats;
-             return one;
-           }),
-         done: temp.done
-       };
-       markDirty(); closeModal(); renderOverview();
-     }}]);
-  // 次数增减
-  $('#bDoneMinus').addEventListener('click', () => { temp.done = Math.max(0, temp.done - 1); $('#bDoneVal').textContent = temp.done; });
-  $('#bDonePlus').addEventListener('click', () => { temp.done = Math.min(6, temp.done + 1); $('#bDoneVal').textContent = temp.done; });
+    [{ text:'完成（改动已自动保存）', cls:'primary', fn: closeModal }]);
+  // 次数增减（即时保存）
+  $('#bDoneMinus').addEventListener('click', () => { temp.done = Math.max(0, temp.done - 1); $('#bDoneVal').textContent = temp.done; saveNow(); });
+  $('#bDonePlus').addEventListener('click', () => { temp.done = Math.min(6, temp.done + 1); $('#bDoneVal').textContent = temp.done; saveNow(); });
   // 等级下拉即时变色
   $('#bountyLv').addEventListener('change', e => {
     e.target.className = 'lv-sel' + (e.target.value ? ' lv-' + e.target.value : '');
