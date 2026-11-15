@@ -71,7 +71,6 @@ html.dark .lv-C{background:#052e16;color:#86efac}
 /* 悬赏弹窗分区卡片：新增区 / 列表区分开显示 */
 .form-row.bounty-sec{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:12px;background:var(--bg-card)}
 .form-row.bounty-sec>label{display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:13px;font-weight:600;color:var(--text)}
-.bounty-sec .sec-no{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--primary);color:#fff;font-size:11px;font-weight:700;flex:0 0 auto}
 /* 悬赏弹窗：添加栏（选副本 → 等级/标记 → 新增） */
 .bounty-add-bar{display:flex;flex-direction:column;gap:8px;padding:8px;border-radius:8px;background:var(--bg-hover)}
 .bounty-add-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -1239,7 +1238,7 @@ function openBountyModal(cid){
         <button type="button" class="btn sm" id="bDonePlus">＋</button>
       </div>
     </div>
-    <div class="form-row bounty-sec"><label><span class="sec-no">1</span> 新增框</label>
+    <div class="form-row bounty-sec"><label>新增</label>
       <div class="bounty-add-bar">
         <div class="bounty-add-line">
           <select id="bountyPick" style="flex:1 1 140px;min-width:120px"></select>
@@ -1255,7 +1254,7 @@ function openBountyModal(cid){
         </div>
       </div>
     </div>
-    <div class="form-row bounty-sec"><label><span class="sec-no">2</span> 本周悬赏框 <span class="mut" id="bountyCount" style="font-weight:400"></span></label>
+    <div class="form-row bounty-sec"><label>本周悬赏 <span class="mut" id="bountyCount" style="font-weight:400"></span></label>
       <div id="bountyNestList"></div>
     </div>`,
     [{ text:'取消', fn: closeModal },
