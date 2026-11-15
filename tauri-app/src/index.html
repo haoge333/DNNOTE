@@ -80,6 +80,28 @@ html.dark .lv-C{background:#052e16;color:#86efac}
 .bounty-add-line .opt input{flex:0 0 auto;width:auto;margin:0}
 .bounty-row .bounty-name{flex:1;display:flex;align-items:center;gap:6px;min-width:90px}
 .bounty-row .bounty-remove{flex:0 0 auto}
+/* 悬赏 ☆ 双倍标记：实心金星 + 发光，一眼可辨；整行加金色描边与淡金底 */
+.bounty-star{flex:0 0 auto;font-size:20px;line-height:1;padding:0 2px;color:var(--text-3);background:none;border:none;cursor:pointer;transition:transform .15s,color .15s}
+.bounty-star:hover{transform:scale(1.18)}
+.bounty-star.on{color:#f59e0b;text-shadow:0 0 6px rgba(245,158,11,.85),0 0 14px rgba(245,158,11,.5)}
+.bounty-row.star{border-color:#f59e0b;box-shadow:0 0 0 1px rgba(245,158,11,.35) inset;background:linear-gradient(90deg,rgba(245,158,11,.10),transparent 65%)}
+/* 悬赏奖励材料标签 */
+.bounty-mats{flex:1 1 100%;display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:11px;color:var(--text-2)}
+.mat-chip{padding:0 6px;border-radius:8px;border:1px solid var(--border);background:var(--bg-hover);font-size:11px;color:var(--text-2);white-space:nowrap;line-height:1.7}
+.mat-chip.dbl{border-color:#f59e0b;background:rgba(245,158,11,.14);color:#b45309;font-weight:700}
+html.dark .mat-chip.dbl{color:#fbbf24}
+.bounty-mat-pick{flex:1 1 100%;display:flex;flex-wrap:wrap;gap:4px 10px;padding:8px;border:1px dashed var(--border);border-radius:8px;background:var(--bg-hover)}
+.bounty-mat-pick label{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);white-space:nowrap;margin:0;cursor:pointer}
+.bounty-mat-pick label input{flex:0 0 auto;width:auto;margin:0}
+.bounty-mat-pick label.on{color:var(--primary);font-weight:600}
+/* 新增栏：双倍奖励开关（大金星）与奖励材料勾选 */
+.bounty-add-line .opt.star-opt{color:var(--text);font-weight:600}
+.opt.star-opt .star-g{font-size:16px;line-height:1;color:var(--text-3);transition:color .15s,text-shadow .15s}
+.opt.star-opt input:checked~.star-g{color:#f59e0b;text-shadow:0 0 6px rgba(245,158,11,.85),0 0 14px rgba(245,158,11,.5)}
+.bounty-rewards{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+/* 总览悬赏标签中的 ★：金色醒目 */
+.bt-star{font-style:normal;font-size:12px;font-weight:700;color:#f59e0b;margin-right:3px;text-shadow:0 0 5px rgba(245,158,11,.75)}
+.bounty-tag.done .bt-star{color:#fde68a;text-shadow:0 0 5px rgba(0,0,0,.35)}
 /* 打赏页 */
 .donate-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,300px));gap:20px;justify-content:center;margin-top:16px}
 .donate-card{border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;background:var(--bg-card)}
@@ -819,6 +841,11 @@ function migrateState(st){
     Object.keys(c.bounty).forEach(w => {
       const b = c.bounty[w] || {};
       if (!Array.isArray(b.entries)) b.entries = bountyEntries(b);
+      // 每条悬赏补齐奖励材料与 ☆ 双倍标记
+      b.entries.forEach(e => {
+        e.star = !!e.star;
+        e.rewards = Array.isArray(e.rewards) ? e.rewards.filter(m => BOUNTY_REWARDS.includes(m)) : [];
+      });
       delete b.nests; delete b.flags;
       b.done = Math.min(6, b.done || 0);
       c.bounty[w] = b;
@@ -991,7 +1018,9 @@ function getRec(char, nestId, weekId = S.config.currentWeekId){
   const w = char.weeklyRecord[weekId]; if (!w) return null;
   return w[nestId] || null;
 }
-// 读取角色本周悬赏：{ entries: [{id,nestId,lv,g,t,done}], done: 已完成次数(0-6) }，无记录返回 null
+// 悬赏可选奖励材料（勾选 ☆ 双倍时奖励翻倍）
+const BOUNTY_REWARDS = ['刻印药水', '防具卷轴', '武器卷轴', '三件套卷轴', '饰品卷轴', 'S刷新卡', 'A刷新卡', '代码'];
+// 读取角色本周悬赏：{ entries: [{id,nestId,lv,g,t,done,star,rewards}], done: 已完成次数(0-6) }，无记录返回 null
 function getBounty(c, weekId = S.config.currentWeekId){
   return c.bounty?.[weekId] || null;
 }
@@ -1001,7 +1030,7 @@ function bountyEntries(b){
   if (Array.isArray(b.entries)) return b.entries;
   return Object.entries(b.nests || {}).map(([nid, ok]) => {
     const fl = b.flags?.[nid] || {};
-    return { id: uid('bn'), nestId: nid, lv: fl.lv || '', g: !!fl.g, t: !!fl.t, done: !!ok };
+    return { id: uid('bn'), nestId: nid, lv: fl.lv || '', g: !!fl.g, t: !!fl.t, done: !!ok, star: false, rewards: [] };
   });
 }
 function setRec(char, nestId, val){
@@ -1121,7 +1150,11 @@ function renderOverview(){
             if (!nn) return '';
             const fs = [e.g ? '同会' : '', e.t ? '限时' : ''].filter(Boolean).join('·');
             const lv = ['L','S','A','B','C'].includes(e.lv) ? `<i class="bt-grade lv-${e.lv}">${e.lv}</i>` : '';
-            return `<span class="bounty-tag ${e.done ? 'done' : ''}">${lv}${esc(nn.name)}${fs ? `<i class="bt-flag">${fs}</i>` : ''}</span>`;
+            const star = e.star ? '<i class="bt-star" title="☆ 双倍悬赏，奖励翻倍">★</i>' : '';
+            const matTip = (e.rewards || []).length
+              ? `奖励材料：${e.rewards.join('、')}${e.star ? '（双倍）' : ''}`
+              : (e.star ? '☆ 双倍悬赏，奖励翻倍' : '未选奖励材料');
+            return `<span class="bounty-tag ${e.done ? 'done' : ''}" title="${esc(matTip)}">${star}${lv}${esc(nn.name)}${fs ? `<i class="bt-flag">${fs}</i>` : ''}</span>`;
           }).join('')
         : '';
       const cntTag = bounty ? `<span class="bounty-tag cnt${(bounty.done || 0) >= 6 ? ' done' : ''}">悬赏 ${bounty.done || 0}/6</span>` : '';
@@ -1186,6 +1219,8 @@ function openBountyModal(cid){
   const temp = { entries: JSON.parse(JSON.stringify(bountyEntries(old))), done: Math.min(6, old.done || 0) };
   // 只列出该角色可通关的启用副本作为悬赏候选
   const candidates = sortedNests(S.nestList.filter(n => n.enable && c.availableNestIds.includes(n.id)));
+  // 当前展开奖励材料选择器的条目 id（同一时间只展开一条）
+  let matOpenId = null;
   // 渲染悬赏列表与可新增副本下拉（同一副本可重复新增）
   function renderBounty(){
     $('#bountyNestList').innerHTML = temp.entries.length
@@ -1193,13 +1228,28 @@ function openBountyModal(cid){
         const n = nestById(e.nestId);
         const lvOpts = ['', 'L', 'S', 'A', 'B', 'C'].map(v =>
           `<option value="${v}" ${(e.lv || '') === v ? 'selected' : ''}>${v || '等级'}</option>`).join('');
-        return `<div class="bounty-row" data-eid="${e.id}">
+        const mats = e.rewards || [];
+        const matTags = mats.length
+          ? mats.map(m => `<span class="mat-chip${e.star ? ' dbl' : ''}">${esc(m)}</span>`).join('')
+          : '<span class="mut">未选奖励材料</span>';
+        const matPick = matOpenId === e.id
+          ? `<div class="bounty-mat-pick">${BOUNTY_REWARDS.map(m =>
+              `<label class="${mats.includes(m) ? 'on' : ''}"><input type="checkbox" data-meid="${e.id}" data-mat="${m}" ${mats.includes(m) ? 'checked' : ''}> ${esc(m)}</label>`).join('')}</div>`
+          : '';
+        return `<div class="bounty-row${e.star ? ' star' : ''}" data-eid="${e.id}">
+          <button type="button" class="bounty-star${e.star ? ' on' : ''}" data-starid="${e.id}"
+            title="${e.star ? '☆ 双倍悬赏（奖励翻倍），点击取消' : '点击设为 ☆ 双倍悬赏（奖励翻倍）'}">${e.star ? '★' : '☆'}</button>
           <span class="bounty-name">${esc(n ? n.name : '已删除副本')}${n ? ` <span class="mut">${n.size}人</span>` : ''}</span>
           <select class="lv-sel${e.lv ? ' lv-' + e.lv : ''}" data-lvid="${e.id}" title="悬赏等级 L/S/A/B/C">${lvOpts}</select>
           <label class="opt"><input type="checkbox" data-feid="${e.id}" data-flag="g" ${e.g ? 'checked' : ''}> 同工会</label>
           <label class="opt"><input type="checkbox" data-feid="${e.id}" data-flag="t" ${e.t ? 'checked' : ''}> 限时</label>
           <label class="opt done${e.done ? ' on' : ''}"><input type="checkbox" data-doneid="${e.id}" ${e.done ? 'checked' : ''}> 已完成</label>
           <button type="button" class="btn xs danger bounty-remove" data-removeid="${e.id}" title="从本周悬赏移除">✕</button>
+          <div class="bounty-mats">
+            <span>奖励材料：</span>${matTags}
+            <button type="button" class="btn xs bounty-mat-edit" data-matid="${e.id}">改材料</button>
+          </div>
+          ${matPick}
         </div>`;
       }).join('')
       : '<span class="mut">还没有新增悬赏副本，请在上方选择副本后点「新增」</span>';
@@ -1236,6 +1286,28 @@ function openBountyModal(cid){
       e.done = cb.checked;
       renderBounty();
     }));
+    // 切换 ☆ 双倍悬赏
+    $$('#bountyNestList .bounty-star').forEach(btn => btn.addEventListener('click', () => {
+      const e = temp.entries.find(x => x.id === btn.dataset.starid);
+      if (!e) return;
+      e.star = !e.star;
+      renderBounty();
+    }));
+    // 展开/收起奖励材料选择器
+    $$('#bountyNestList .bounty-mat-edit').forEach(btn => btn.addEventListener('click', () => {
+      matOpenId = matOpenId === btn.dataset.matid ? null : btn.dataset.matid;
+      renderBounty();
+    }));
+    // 勾选奖励材料
+    $$('#bountyNestList input[data-meid]').forEach(cb => cb.addEventListener('change', () => {
+      const e = temp.entries.find(x => x.id === cb.dataset.meid);
+      if (!e) return;
+      const set = new Set(e.rewards || []);
+      if (cb.checked) set.add(cb.dataset.mat); else set.delete(cb.dataset.mat);
+      // 按固定顺序保存，保证展示一致
+      e.rewards = BOUNTY_REWARDS.filter(m => set.has(m));
+      renderBounty();
+    }));
     // 移除该条悬赏
     $$('#bountyNestList .bounty-remove').forEach(btn => btn.addEventListener('click', () => {
       temp.entries = temp.entries.filter(x => x.id !== btn.dataset.removeid);
@@ -1262,7 +1334,14 @@ function openBountyModal(cid){
         <div class="bounty-add-line">
           <label class="opt"><input type="checkbox" id="bountyFlagG"> 同工会</label>
           <label class="opt"><input type="checkbox" id="bountyFlagT"> 限时</label>
+          <label class="opt star-opt" title="勾选后该条悬赏奖励翻倍"><input type="checkbox" id="bountyStar"> <span class="star-g">★</span> 双倍奖励</label>
           <span class="mut" style="font-size:11px">同一副本可多次新增，每次算一条悬赏</span>
+        </div>
+        <div class="bounty-add-line">
+          <span class="mut" style="font-size:12px;flex:0 0 auto">奖励材料</span>
+          <div class="bounty-rewards" id="bountyRewards">
+            ${BOUNTY_REWARDS.map(m => `<label class="opt"><input type="checkbox" data-newmat="${m}"> ${esc(m)}</label>`).join('')}
+          </div>
         </div>
       </div>
     </div>
@@ -1281,6 +1360,9 @@ function openBountyModal(cid){
              if (['L','S','A','B','C'].includes(e.lv)) one.lv = e.lv;
              if (e.g) one.g = true;
              if (e.t) one.t = true;
+             if (e.star) one.star = true;
+             const mats = BOUNTY_REWARDS.filter(m => (e.rewards || []).includes(m));
+             if (mats.length) one.rewards = mats;
              return one;
            }),
          done: temp.done
@@ -1298,17 +1380,22 @@ function openBountyModal(cid){
   $('#bountyAdd').addEventListener('click', () => {
     const nid = $('#bountyPick').value;
     if (!nid) return;
+    const rewards = $$('#bountyRewards input[data-newmat]').filter(cb => cb.checked).map(cb => cb.dataset.newmat);
     temp.entries.push({
       id: uid('bn'),
       nestId: nid,
       lv: $('#bountyLv').value || '',
       g: $('#bountyFlagG').checked,
       t: $('#bountyFlagT').checked,
+      star: $('#bountyStar').checked,
+      rewards: BOUNTY_REWARDS.filter(m => rewards.includes(m)),
       done: false
     });
     // 重置添加栏，方便连续新增
     $('#bountyLv').value = ''; $('#bountyLv').className = 'lv-sel';
     $('#bountyFlagG').checked = false; $('#bountyFlagT').checked = false;
+    $('#bountyStar').checked = false;
+    $$('#bountyRewards input[data-newmat]').forEach(cb => cb.checked = false);
     renderBounty();
   });
   renderBounty();
@@ -1961,7 +2048,8 @@ function renderStats(){
       const bDetail = bountyEntries(b).map(e => {
         const nn = nestById(e.nestId); if (!nn) return '';
         const fs = [e.g?'同会':'', e.t?'限时':''].filter(Boolean).join('/');
-        return `${nn.name}${e.lv?`[${e.lv}]`:''}${e.done?'✓':'○'}${fs?'['+fs+']':''}`;
+        const mats = (e.rewards || []).join('/');
+        return `${e.star?'★':''}${nn.name}${e.lv?`[${e.lv}]`:''}${e.done?'✓':'○'}${fs?'['+fs+']':''}${mats?'('+mats+')':''}`;
       }).filter(Boolean).join('、');
       html += `<tr><td>${esc(a.name)}</td>
         <td><span class="job-dot" style="background:${jobColor(c.jobId)}"></span><b style="color:${jobColor(c.jobId)}">${esc(c.name)}</b></td>
