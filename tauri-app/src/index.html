@@ -1239,7 +1239,8 @@ function openBountyModal(cid){
   // 立即把弹窗内的改动写回角色数据并刷新总览（无需手动点保存）
   function saveNow(){
     c.bounty = c.bounty || {};
-    const entries = temp.entries.filter(e => nestById(e.nestId)).map(e => {
+    // 不再按副本是否还存在过滤，避免副本被删后条目被静默丢弃
+    const entries = temp.entries.map(e => {
       const one = { id: e.id, nestId: e.nestId, done: !!e.done };
       if (['L','S','A','B','C'].includes(e.lv)) one.lv = e.lv;
       if (e.g) one.g = true;
@@ -1254,10 +1255,11 @@ function openBountyModal(cid){
     else c.bounty[weekId] = { entries, done: temp.done };
     markDirty();
     // 只刷新总览，保留表格滚动位置，避免每次改动都跳回顶部
-    const wrap = $('#overviewTableWrap');
-    const sx = wrap.scrollLeft, sy = wrap.scrollTop;
+    const wrap = $('#overviewTableWrap .tbl-wrap');
+    const sx = wrap ? wrap.scrollLeft : 0, sy = wrap ? wrap.scrollTop : 0;
     renderOverview();
-    wrap.scrollLeft = sx; wrap.scrollTop = sy;
+    if (wrap){ wrap.scrollLeft = sx; wrap.scrollTop = sy; }
+    showSaveIndicator('悬赏已保存');
   }
   // 渲染悬赏列表与可新增副本下拉（同一副本可重复新增）
   function renderBounty(){
