@@ -62,12 +62,23 @@ html.dark .lv-C{background:#052e16;color:#86efac}
 .bounty-row select.lv-sel{width:66px;padding:2px 4px;font-size:12px;font-weight:700;border-radius:6px}
 .bounty-add{color:var(--text-3);font-size:11px}
 /* 悬赏弹窗副本行 */
-.bounty-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px}
+.bounty-row{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--bg-card)}
 .bounty-row label{flex:1;display:flex;align-items:center;gap:6px;cursor:pointer}
-.bounty-row label.opt{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;margin-bottom:0;font-size:12px;color:var(--text-2);white-space:nowrap}
+.bounty-row label.opt{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;margin:0;font-size:12px;color:var(--text-2);white-space:nowrap}
 .bounty-row label.opt input{flex:0 0 auto;width:auto;margin:0}
-.bounty-row label.opt.done{color:var(--text)}
-.bounty-row label.opt.done.on{color:var(--success);font-weight:700}
+/* 已完成：胶囊开关，完成后整块变绿 */
+.bounty-row label.opt.done{padding:3px 10px;border:1px solid var(--border);border-radius:999px;background:var(--bg-hover);color:var(--text-2)}
+.bounty-row label.opt.done.on{background:var(--success);border-color:var(--success);color:#fff;font-weight:700}
+/* 已完成时隐藏原生复选框，避免绿底上出现白框 */
+.bounty-row label.opt.done.on input{position:absolute;opacity:0;width:0;height:0;margin:0;pointer-events:none}
+/* 移除按钮：默认低调，悬停才变红 */
+.bounty-row .btn.bounty-remove{background:none;border-color:transparent;color:var(--text-3);padding:2px 8px}
+.bounty-row .btn.bounty-remove:hover{background:rgba(220,38,38,.12);border-color:var(--danger);color:var(--danger)}
+/* 第二行：同工会 / 限时 chips + 奖励材料，与第一行用虚线分隔 */
+.bounty-sub{flex:1 1 100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding-top:8px;border-top:1px dashed var(--border);font-size:12px}
+.bounty-sub label.opt.flag{padding:2px 10px;border:1px solid var(--border);border-radius:999px;background:var(--bg-card);color:var(--text-2);font-size:12px}
+.bounty-sub label.opt.flag.on{border-color:var(--primary);background:var(--bg-active);color:var(--primary);font-weight:600}
+.bounty-row .bounty-name{font-size:13px;font-weight:600}
 /* 悬赏弹窗分区卡片：新增区 / 列表区分开显示 */
 .form-row.bounty-sec{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:12px;background:var(--bg-card)}
 .form-row.bounty-sec>label{display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:13px;font-weight:600;color:var(--text)}
@@ -81,15 +92,18 @@ html.dark .lv-C{background:#052e16;color:#86efac}
 .bounty-row .bounty-name{flex:1;display:flex;align-items:center;gap:6px;min-width:90px}
 .bounty-row .bounty-remove{flex:0 0 auto}
 /* 悬赏 ☆ 双倍标记：实心金星 + 发光，一眼可辨；整行加金色描边与淡金底 */
-.bounty-star{flex:0 0 auto;font-size:20px;line-height:1;padding:0 2px;color:var(--text-3);background:none;border:none;cursor:pointer;transition:transform .15s,color .15s}
+.bounty-star{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;font-size:18px;line-height:1;padding:0;color:var(--text-3);background:none;border:none;cursor:pointer;transition:transform .15s,color .15s}
 .bounty-star:hover{transform:scale(1.18)}
 .bounty-star.on{color:#f59e0b;text-shadow:0 0 6px rgba(245,158,11,.85),0 0 14px rgba(245,158,11,.5)}
 .bounty-row.star{border-color:#f59e0b;box-shadow:0 0 0 1px rgba(245,158,11,.35) inset;background:linear-gradient(90deg,rgba(245,158,11,.10),transparent 65%)}
 /* 悬赏奖励材料标签 */
-.bounty-mats{flex:1 1 100%;display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:11px;color:var(--text-2)}
-.mat-chip{padding:0 6px;border-radius:8px;border:1px solid var(--border);background:var(--bg-hover);font-size:11px;color:var(--text-2);white-space:nowrap;line-height:1.7}
+.bounty-mats{flex:1 1 100%;display:flex;flex-wrap:wrap;align-items:center;gap:5px;min-width:0;color:var(--text-2)}
+.bounty-mats .mat-label{font-size:11px;color:var(--text-3)}
+.mat-chip{padding:1px 8px;border-radius:999px;border:1px solid var(--border);background:var(--bg-hover);font-size:11px;color:var(--text-2);white-space:nowrap;line-height:1.7}
 .mat-chip.dbl{border-color:#f59e0b;background:rgba(245,158,11,.14);color:#b45309;font-weight:700}
 html.dark .mat-chip.dbl{color:#fbbf24}
+.bounty-mat-edit{font-size:11px;color:var(--primary);padding:0 2px;background:none;border:none;cursor:pointer;text-decoration:underline;text-decoration-style:dashed;text-underline-offset:3px}
+.bounty-mat-edit:hover{color:var(--primary-d)}
 .bounty-mat-pick{flex:1 1 100%;display:flex;flex-wrap:wrap;gap:4px 10px;padding:8px;border:1px dashed var(--border);border-radius:8px;background:var(--bg-hover)}
 .bounty-mat-pick label{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);white-space:nowrap;margin:0;cursor:pointer}
 .bounty-mat-pick label input{flex:0 0 auto;width:auto;margin:0}
@@ -1241,13 +1255,15 @@ function openBountyModal(cid){
             title="${e.star ? '☆ 双倍悬赏（奖励翻倍），点击取消' : '点击设为 ☆ 双倍悬赏（奖励翻倍）'}">${e.star ? '★' : '☆'}</button>
           <span class="bounty-name">${esc(n ? n.name : '已删除副本')}${n ? ` <span class="mut">${n.size}人</span>` : ''}</span>
           <select class="lv-sel${e.lv ? ' lv-' + e.lv : ''}" data-lvid="${e.id}" title="悬赏等级 L/S/A/B/C">${lvOpts}</select>
-          <label class="opt"><input type="checkbox" data-feid="${e.id}" data-flag="g" ${e.g ? 'checked' : ''}> 同工会</label>
-          <label class="opt"><input type="checkbox" data-feid="${e.id}" data-flag="t" ${e.t ? 'checked' : ''}> 限时</label>
           <label class="opt done${e.done ? ' on' : ''}"><input type="checkbox" data-doneid="${e.id}" ${e.done ? 'checked' : ''}> 已完成</label>
           <button type="button" class="btn xs danger bounty-remove" data-removeid="${e.id}" title="从本周悬赏移除">✕</button>
-          <div class="bounty-mats">
-            <span>奖励材料：</span>${matTags}
-            <button type="button" class="btn xs bounty-mat-edit" data-matid="${e.id}">改材料</button>
+          <div class="bounty-sub">
+            <label class="opt flag${e.g ? ' on' : ''}"><input type="checkbox" data-feid="${e.id}" data-flag="g" ${e.g ? 'checked' : ''}> 同工会</label>
+            <label class="opt flag${e.t ? ' on' : ''}"><input type="checkbox" data-feid="${e.id}" data-flag="t" ${e.t ? 'checked' : ''}> 限时</label>
+            <span class="bounty-mats">
+              <span class="mat-label">奖励材料</span>${matTags}
+              <button type="button" class="bounty-mat-edit" data-matid="${e.id}">改材料</button>
+            </span>
           </div>
           ${matPick}
         </div>`;
@@ -1278,6 +1294,7 @@ function openBountyModal(cid){
       const e = temp.entries.find(x => x.id === cb.dataset.feid);
       if (!e) return;
       e[cb.dataset.flag] = cb.checked;
+      renderBounty();
     }));
     // 切换完成状态
     $$('#bountyNestList input[data-doneid]').forEach(cb => cb.addEventListener('change', () => {
@@ -1335,7 +1352,6 @@ function openBountyModal(cid){
           <label class="opt"><input type="checkbox" id="bountyFlagG"> 同工会</label>
           <label class="opt"><input type="checkbox" id="bountyFlagT"> 限时</label>
           <label class="opt star-opt" title="勾选后该条悬赏奖励翻倍"><input type="checkbox" id="bountyStar"> <span class="star-g">★</span> 双倍奖励</label>
-          <span class="mut" style="font-size:11px">同一副本可多次新增，每次算一条悬赏</span>
         </div>
         <div class="bounty-add-line">
           <span class="mut" style="font-size:12px;flex:0 0 auto">奖励材料</span>
